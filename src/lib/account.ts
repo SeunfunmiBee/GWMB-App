@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { MembershipApplication, MembershipVerificationRequest, Profile } from '@/types/database';
+import type { MembershipApplication, MembershipDetails, MembershipVerificationRequest, Profile } from '@/types/database';
 
 export async function updateProfile(userId: string, values: Pick<Profile, 'full_name' | 'city_club' | 'avatar_url'>) {
   const { data, error } = await supabase.from('profiles').update(values).eq('id', userId).select('*').single();
@@ -48,4 +48,44 @@ export async function submitVerificationRequest(input: { userId: string; email: 
   const { data, error } = await query.select('*').single();
   if (error) throw error;
   return data as MembershipVerificationRequest;
+}
+
+export type MembershipLinkResult = {
+  result: 'verified' | 'inactive' | 'needs_review' | 'email_confirmation_required' | 'already_linked';
+  request_status: 'pending' | 'needs_review' | 'approved' | 'rejected';
+  message: string;
+};
+
+export async function requestMembershipLink(input: { email: string; memberIdentifier: string; chapter: string }) {
+  const membershipEmail = input.email.trim().replace(/[.,;:]+$/, '').toLowerCase();
+  const { data, error } = await supabase.rpc('submit_membership_link_request', {
+    p_membership_email: membershipEmail,
+    p_member_identifier: input.memberIdentifier.trim().toUpperCase(),
+    p_chapter: input.chapter.trim() || null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error('GWMB could not process this membership request.');
+  return row as MembershipLinkResult;
+}
+
+export async function loadMyMembershipDetails() {
+  const { data, error } = await supabase.rpc('get_my_membership_details');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row ?? null) as MembershipDetails | null;
+}
+
+export async function sendMembershipEmailCode() {
+  const { data, error } = await supabase.functions.invoke('membership-email-otp', { body:{ action:'send' } });
+  if (error) throw new Error((data as { error?:string } | null)?.error ?? error.message);
+  if (data?.error) throw new Error(data.error as string);
+  return data as { ok:true; message:string };
+}
+
+export async function verifyMembershipEmailCode(code: string) {
+  const { data, error } = await supabase.functions.invoke('membership-email-otp', { body:{ action:'verify', code } });
+  if (error) throw new Error((data as { error?:string } | null)?.error ?? error.message);
+  if (data?.error) throw new Error(data.error as string);
+  return data as { ok:true; status:'verified'|'inactive'; message:string };
 }

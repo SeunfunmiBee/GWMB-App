@@ -10,6 +10,8 @@ export type Opportunity = {
   source: string;
   access: 'Open Access' | 'Members Only';
   summary: string;
+  aiAssistance: 'allowed' | 'restricted';
+  aiPolicy?: string;
 };
 
 export const opportunities: Opportunity[] = [
@@ -25,6 +27,8 @@ export const opportunities: Opportunity[] = [
     source: 'GWMB Partner',
     access: 'Members Only',
     summary: 'Build practical experience on meaningful projects in a fast-moving fintech environment.',
+    aiAssistance: 'restricted',
+    aiPolicy: 'This employer asks applicants to write personal responses without AI assistance.',
   },
   {
     id: 'women-tech',
@@ -38,6 +42,7 @@ export const opportunities: Opportunity[] = [
     source: 'Third Party',
     access: 'Open Access',
     summary: 'Access supported digital-skills training and build a portfolio for your next opportunity.',
+    aiAssistance: 'allowed',
   },
   {
     id: 'gwmb-fund',
@@ -50,6 +55,7 @@ export const opportunities: Opportunity[] = [
     source: 'GWMB Sponsored',
     access: 'Members Only',
     summary: 'Grow your leadership confidence through guided learning, projects and a supportive cohort.',
+    aiAssistance: 'allowed',
   },
 ];
 

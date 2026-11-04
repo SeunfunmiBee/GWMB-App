@@ -49,7 +49,7 @@ export default function MemberWinsScreen() {
 
   return (
     <Screen contentContainerStyle={styles.screenContent}>
-      <PageHeader title="GWMB Girls Making Moves" />
+      <PageHeader title="Member Spotlights" eyebrow="GWMB Girls Making Moves" />
 
       <FadeIn delay={50}>
         <View style={styles.hero}>
@@ -58,7 +58,7 @@ export default function MemberWinsScreen() {
           <View style={styles.heroTop}>
             <View style={styles.heroBadge}>
               <Ionicons name="star" size={12} color={colors.pinkDeep} />
-              <Text style={styles.heroBadgeText}>MEMBER WIN</Text>
+              <Text style={styles.heroBadgeText}>MEMBER SPOTLIGHT</Text>
             </View>
             <Text style={styles.heroIssue}>01</Text>
           </View>

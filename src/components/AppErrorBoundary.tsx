@@ -1,0 +1,8 @@
+import { Component, type ErrorInfo, type PropsWithChildren, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { logAppError } from '@/lib/launch-operations';
+import { colors, fonts } from '@/theme';
+
+type State={failed:boolean};
+export class AppErrorBoundary extends Component<PropsWithChildren,State>{state:State={failed:false};static getDerivedStateFromError(){return{failed:true}}componentDidCatch(error:Error,info:ErrorInfo){void logAppError('react-error-boundary',error,{componentStack:info.componentStack??''})}render():ReactNode{if(this.state.failed)return <View style={styles.page}><Text style={styles.kicker}>WE COULDN’T LOAD THIS PAGE</Text><Text style={styles.title}>Let’s try that again.</Text><Text style={styles.copy}>Your account and saved information are safe. Try again now, or return after checking your connection.</Text><Pressable onPress={()=>this.setState({failed:false})} style={styles.button}><Text style={styles.buttonText}>Try again</Text></Pressable></View>;return this.props.children}}
+const styles=StyleSheet.create({page:{flex:1,backgroundColor:colors.canvas,alignItems:'center',justifyContent:'center',padding:28},kicker:{fontFamily:fonts.bodyBold,fontSize:8,letterSpacing:1,color:colors.pinkDeep},title:{fontFamily:fonts.heading,fontSize:25,color:colors.ink,textAlign:'center',marginTop:8},copy:{fontFamily:fonts.body,fontSize:10,lineHeight:16,color:colors.muted,textAlign:'center',marginTop:7,maxWidth:320},button:{minHeight:50,borderRadius:15,backgroundColor:colors.ink,paddingHorizontal:24,alignItems:'center',justifyContent:'center',marginTop:20},buttonText:{fontFamily:fonts.bodyBold,fontSize:10,color:'white'}});

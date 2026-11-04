@@ -6,19 +6,20 @@
     "scheme": "gwmb",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/gwmb-app-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "org.girlswhomeanbusiness.app"
+      "bundleIdentifier": "org.girlswhomeanbusiness.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "org.girlswhomeanbusiness.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#A81455",
+        "foregroundImage": "./assets/branding/gwmb-mark-transparent.png"
       },
       "predictiveBackGestureEnabled": true
     },
@@ -27,7 +28,7 @@
     },
     "web": {
       "bundler": "metro",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/branding/gwmb-app-icon.png"
     },
     "plugins": [
       "expo-router",
@@ -36,12 +37,29 @@
       "expo-sqlite",
       "expo-web-browser",
       [
+        "expo-notifications",
+        {
+          "color": "#E62B7F",
+          "defaultChannel": "gwmb-reminders"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#A81455",
+          "image": "./assets/branding/gwmb-mark-transparent.png",
+          "imageWidth": 180,
+          "resizeMode": "contain"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "GWMB uses the photo you choose as your profile picture.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "router": {},

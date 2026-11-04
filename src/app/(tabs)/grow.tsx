@@ -1,27 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/Screen';
 import { AnimatedProgress } from '@/components/motion/AnimatedProgress';
 import { FadeIn } from '@/components/motion/FadeIn';
 import { SpringPressable } from '@/components/motion/SpringPressable';
 import { courses } from '@/data/courses';
-import { growCategories, type GrowSlug } from '@/data/grow';
+import { growCategories, growCategoryColors, type GrowSlug } from '@/data/grow';
 import { coursePercent, loadCourseProgress, type CourseProgress } from '@/lib/course-progress';
 import { tapFeedback } from '@/lib/feedback';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 
-const focusTones: Record<GrowSlug, string> = {
-  career: '#E62B7F', mentorship: '#3150E8', learning: '#111011', money: '#FFC928', 'personal-growth': '#7A35D1', leadership: '#078765',
-};
-
 const challengeActions = ['Improve one section of your CV', 'Complete one focused lesson', 'Save one opportunity'] as const;
 
 export default function GrowScreen() {
-  const [query, setQuery] = useState('');
   const [progress, setProgress] = useState<CourseProgress | null>(null);
   const [focusSlug, setFocusSlug] = useState<GrowSlug>('career');
   const [challengeDone, setChallengeDone] = useState([true, false, false]);
@@ -52,8 +47,6 @@ export default function GrowScreen() {
   const currentIndex = Math.max(0, cvCourse.lessons.findIndex((item) => !progress?.completed_lesson_ids.includes(item.id)));
   const focus = growCategories.find((item) => item.slug === focusSlug) ?? growCategories[0];
   const challengePercent = Math.round((challengeDone.filter(Boolean).length / challengeActions.length) * 100);
-  const visible = useMemo(() => growCategories.filter((item) => `${item.title} ${item.description}`.toLowerCase().includes(query.trim().toLowerCase())), [query]);
-  const cardTones = [styles.cardDark, styles.cardPink, styles.cardLavender, styles.cardCream, styles.cardPink, styles.cardDark];
 
   function selectFocus(slug: GrowSlug) { void tapFeedback(); setFocusSlug(slug); }
   function toggleChallenge(index: number) { void tapFeedback(); setChallengeDone((current) => current.map((done, itemIndex) => itemIndex === index ? !done : done)); }
@@ -62,7 +55,7 @@ export default function GrowScreen() {
     <FadeIn delay={30}><Text style={styles.eyebrow}>Your development</Text><Text style={styles.title}>Grow.</Text><Text style={styles.copy}>There’s something here to help you grow today.</Text></FadeIn>
 
     <FadeIn delay={75}>
-      <View style={[styles.focusHero, { backgroundColor: focusTones[focus.slug] }]}>
+      <View style={[styles.focusHero, { backgroundColor: growCategoryColors[focus.slug] }]}>
         <View style={styles.focusOrbit}/><Ionicons name={focus.icon} size={128} color="rgba(255,255,255,.10)" style={styles.focusWatermark}/>
         <Text style={[styles.focusKicker, focus.slug === 'money' && styles.focusDarkText]}>WHAT DO YOU WANT TO GROW TODAY?</Text>
         <View style={styles.focusIcon}><Ionicons name={focus.icon} size={30} color={colors.pinkDeep}/></View>
@@ -70,8 +63,18 @@ export default function GrowScreen() {
         <Text style={[styles.focusCopy, focus.slug === 'money' && styles.focusDarkMuted]}>{focus.description}</Text>
         <Pressable onPress={() => router.push(`/grow/${focus.slug}` as Href)} style={styles.focusAction}><Text style={styles.focusActionText}>Explore this focus</Text><Ionicons name="arrow-forward" size={16} color={colors.ink}/></Pressable>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.focusPicker}>
-        {growCategories.map((item) => <Pressable key={item.slug} accessibilityLabel={`Choose ${item.shortTitle}`} onPress={() => selectFocus(item.slug)} style={[styles.focusChoice, focusSlug === item.slug && styles.focusChoiceActive]}><Ionicons name={item.icon} size={18} color={focusSlug === item.slug ? 'white' : colors.ink}/><Text style={[styles.focusChoiceText, focusSlug === item.slug && styles.focusChoiceTextActive]}>{item.shortTitle}</Text></Pressable>)}
+    </FadeIn>
+
+    <FadeIn delay={105}>
+      <View style={styles.sectionHead}><View><Text style={styles.sectionKicker}>YOUR GROWTH PATHS</Text><Text style={styles.sectionTitle}>Explore every way to grow</Text></View><Text style={styles.sectionHint}>Swipe</Text></View>
+      <ScrollView horizontal decelerationRate="fast" snapToInterval={170} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.growthTrack}>
+        {growCategories.map((item, index) => {
+          const money = item.slug === 'money';
+          return <Pressable key={item.slug} accessibilityLabel={`Open ${item.shortTitle}`} onPress={() => { selectFocus(item.slug); router.push(`/grow/${item.slug}` as Href); }} style={({ pressed }) => [styles.growthCard, { backgroundColor: growCategoryColors[item.slug] }, focusSlug === item.slug && styles.growthCardSelected, pressed && styles.growthCardPressed]}>
+            <View style={styles.growthTop}><View style={styles.growthIcon}><Ionicons name={item.icon} size={25} color={colors.pinkDeep}/></View><Text style={[styles.growthIndex, money && styles.growthDarkMuted]}>0{index + 1}</Text></View>
+            <View style={styles.growthBottom}><Text style={[styles.growthTitle, money && styles.growthDarkText]}>{item.shortTitle}</Text><Text numberOfLines={2} style={[styles.growthCopy, money && styles.growthDarkMuted]}>{item.description}</Text><View style={[styles.growthArrow, money && styles.growthArrowDark]}><Ionicons name="arrow-forward" size={16} color={money ? 'white' : colors.ink}/></View></View>
+          </Pressable>;
+        })}
       </ScrollView>
     </FadeIn>
 
@@ -100,20 +103,14 @@ export default function GrowScreen() {
       </View>
     </FadeIn>
 
-    <FadeIn delay={230}><View style={styles.search}><Ionicons name="search" size={19} color={colors.muted}/><TextInput value={query} onChangeText={setQuery} placeholder="Search benefits and topics" placeholderTextColor="#767075" style={styles.input}/><View style={styles.filterIcon}><Ionicons name="options-outline" size={17} color={colors.ink}/></View></View></FadeIn>
-
-    <FadeIn delay={280}><View style={styles.sectionHead}><Text style={styles.sectionTitle}>Explore every growth area</Text><Text style={styles.sectionLink}>My certificates</Text></View>
-      <View style={styles.grid}>{visible.map((item) => { const sourceIndex = growCategories.indexOf(item); const dark = sourceIndex === 0 || sourceIndex === 5; return <SpringPressable key={item.slug} onPress={() => { void tapFeedback(); router.push(`/grow/${item.slug}` as Href); }} style={[styles.card, cardTones[sourceIndex]]} contentStyle={styles.cardContent}><View style={[styles.icon, dark && styles.iconDark]}><Ionicons name={item.icon} size={20} color={dark ? 'white' : colors.pinkDeep}/></View><Text style={[styles.cardTitle, dark && styles.white]}>{item.shortTitle}</Text><Text style={[styles.cardCopy, dark && styles.darkMuted]}>{item.description}</Text></SpringPressable>; })}</View>
-      {!visible.length ? <View style={styles.empty}><Ionicons name="search-outline" size={26} color={colors.pinkDeep}/><Text style={styles.emptyTitle}>No matching benefit</Text><Text style={styles.emptyCopy}>Try “career”, “money” or “leadership”.</Text></View> : null}
-    </FadeIn>
   </Screen>;
 }
 
 const styles = StyleSheet.create({
   eyebrow:{color:colors.pinkDeep,fontSize:10,fontFamily:fonts.bodyBold,letterSpacing:1.1,textTransform:'uppercase',marginTop:8},title:{fontSize:32,lineHeight:36,fontFamily:fonts.heading,color:colors.ink,letterSpacing:-1.2,marginTop:6},copy:{fontSize:13,lineHeight:19,fontFamily:fonts.body,color:colors.muted,marginTop:5},
   focusHero:{height:315,borderRadius:29,overflow:'hidden',padding:20,marginTop:22},focusOrbit:{position:'absolute',width:190,height:190,borderRadius:95,borderWidth:42,borderColor:'rgba(255,255,255,.10)',right:-48,top:-58},focusWatermark:{position:'absolute',right:-18,bottom:-13},focusKicker:{color:'rgba(255,255,255,.82)',fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:1},focusIcon:{width:60,height:60,borderRadius:20,backgroundColor:'white',alignItems:'center',justifyContent:'center',marginTop:24},focusTitle:{color:'white',fontSize:30,lineHeight:35,fontFamily:fonts.heading,letterSpacing:-1,marginTop:18},focusCopy:{color:'rgba(255,255,255,.84)',fontSize:12,lineHeight:18,fontFamily:fonts.bodyMedium,maxWidth:290,marginTop:5},focusDarkText:{color:colors.ink},focusDarkMuted:{color:'rgba(17,16,17,.68)'},focusAction:{height:42,alignSelf:'flex-start',borderRadius:14,backgroundColor:'white',flexDirection:'row',alignItems:'center',gap:18,paddingHorizontal:14,marginTop:'auto'},focusActionText:{color:colors.ink,fontSize:11,fontFamily:fonts.bodyBold},
-  focusPicker:{gap:7,paddingTop:10,paddingRight:18},focusChoice:{height:42,borderRadius:14,backgroundColor:'#EFEDF0',flexDirection:'row',alignItems:'center',gap:7,paddingHorizontal:12},focusChoiceActive:{backgroundColor:colors.ink},focusChoiceText:{color:colors.ink,fontSize:10,fontFamily:fonts.bodyBold},focusChoiceTextActive:{color:'white'},
-  sectionHead:{width:'100%',flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:27,marginBottom:12},sectionTitle:{flexShrink:1,color:colors.ink,fontSize:18,fontFamily:fonts.heading},sectionLink:{flexShrink:0,color:colors.pinkDeep,fontSize:11,fontFamily:fonts.bodyBold},sectionHint:{color:colors.muted,fontSize:10,fontFamily:fonts.bodySemibold},
+  sectionHead:{width:'100%',flexDirection:'row',alignItems:'flex-end',justifyContent:'space-between',marginTop:27,marginBottom:12},sectionKicker:{color:colors.pinkDeep,fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:1,marginBottom:4},sectionTitle:{flexShrink:1,color:colors.ink,fontSize:18,fontFamily:fonts.heading},sectionLink:{flexShrink:0,color:colors.pinkDeep,fontSize:11,fontFamily:fonts.bodyBold},sectionHint:{color:colors.muted,fontSize:10,fontFamily:fonts.bodySemibold},
+  growthTrack:{gap:10,paddingRight:18},growthCard:{width:160,height:200,borderRadius:24,padding:14,overflow:'hidden',borderWidth:2,borderColor:'transparent'},growthCardSelected:{borderColor:'rgba(255,255,255,.78)'},growthCardPressed:{transform:[{translateY:-2}]},growthTop:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between'},growthIcon:{width:49,height:49,borderRadius:16,backgroundColor:'white',alignItems:'center',justifyContent:'center'},growthIndex:{color:'rgba(255,255,255,.72)',fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:.7,marginTop:3},growthBottom:{flex:1,justifyContent:'flex-end'},growthTitle:{color:'white',fontSize:17,lineHeight:20,fontFamily:fonts.headingBold,letterSpacing:-.35,paddingRight:28},growthCopy:{color:'rgba(255,255,255,.78)',fontSize:10,lineHeight:14,fontFamily:fonts.bodyMedium,marginTop:5,paddingRight:4},growthArrow:{position:'absolute',right:0,bottom:0,width:30,height:30,borderRadius:15,backgroundColor:'white',alignItems:'center',justifyContent:'center'},growthArrowDark:{backgroundColor:colors.ink},growthDarkText:{color:colors.ink},growthDarkMuted:{color:'rgba(17,16,17,.62)'},
   continueTrack:{gap:10,paddingRight:18},continueCard:{width:252,height:196,borderRadius:23,overflow:'hidden'},continueContent:{padding:15},continueDark:{backgroundColor:colors.ink},continuePurple:{backgroundColor:'#EFEDFF'},continuePink:{backgroundColor:colors.pinkSoft},continueTop:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between'},continueIcon:{width:46,height:46,borderRadius:15,backgroundColor:'white',alignItems:'center',justifyContent:'center'},continueCount:{color:'white',fontSize:12,fontFamily:fonts.headingBold},continueEyebrow:{color:'#F3A2C6',fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:.8,marginTop:17},purpleEyebrow:{color:'#6841D8',fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:.8,marginTop:17},pinkEyebrow:{color:colors.pinkDeep,fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:.8,marginTop:17},continueTitle:{color:'white',fontSize:17,lineHeight:21,fontFamily:fonts.headingBold,marginTop:5},continueTitleDark:{color:colors.ink,fontSize:17,lineHeight:21,fontFamily:fonts.headingBold,marginTop:5,maxWidth:205},continueMeta:{color:'#BEB7BB',fontSize:10,fontFamily:fonts.bodyMedium,marginTop:4},continueMetaDark:{color:colors.muted,fontSize:10,fontFamily:fonts.bodyMedium,marginTop:5},continueProgress:{marginTop:'auto'},
   challengeCard:{borderRadius:27,backgroundColor:colors.pinkDeep,padding:19,overflow:'hidden'},challengeHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12},challengeKicker:{color:'#FFC4DE',fontSize:9,fontFamily:fonts.bodyBold,letterSpacing:.9},challengeTitle:{color:'white',fontSize:20,lineHeight:25,fontFamily:fonts.headingBold,marginTop:5,maxWidth:270},challengeRing:{width:54,height:54,borderRadius:27,borderWidth:5,borderColor:'#FFD13D',alignItems:'center',justifyContent:'center'},challengePercent:{color:'white',fontSize:10,fontFamily:fonts.headingBold},challengeProgress:{marginTop:17},challengeList:{gap:7,marginTop:15},challengeAction:{minHeight:42,borderRadius:14,backgroundColor:'rgba(255,255,255,.11)',flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:11},challengeCheck:{width:24,height:24,borderRadius:12,borderWidth:1,borderColor:'rgba(255,255,255,.45)',alignItems:'center',justifyContent:'center'},challengeCheckDone:{backgroundColor:'white',borderColor:'white'},challengeActionText:{flex:1,color:'white',fontSize:11,fontFamily:fonts.bodySemibold},challengeActionDone:{color:'rgba(255,255,255,.58)',textDecorationLine:'line-through'},
   search:{height:54,borderRadius:17,borderWidth:1,borderColor:colors.line,backgroundColor:colors.surface,flexDirection:'row',alignItems:'center',paddingLeft:14,marginTop:25},input:{flex:1,minWidth:0,height:'100%',paddingHorizontal:10,color:colors.ink,fontSize:12,fontFamily:fonts.body},filterIcon:{width:38,height:38,borderRadius:13,backgroundColor:'#F0EDEF',alignItems:'center',justifyContent:'center',marginRight:6},

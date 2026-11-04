@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { completeWelcome } from '@/lib/first-launch';
 
 async function handleAuthUrl(url: string) {
   const [beforeHash, hash = ''] = url.split('#');
@@ -9,12 +10,21 @@ async function handleAuthUrl(url: string) {
   const params = new URLSearchParams([query, hash].filter(Boolean).join('&'));
   const accessToken = params.get('access_token');
   const refreshToken = params.get('refresh_token');
+  const authorizationCode = params.get('code');
   const type = params.get('type');
 
-  if (!accessToken || !refreshToken) return;
-  const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+  const result = accessToken && refreshToken
+    ? await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+    : authorizationCode
+      ? await supabase.auth.exchangeCodeForSession(authorizationCode)
+      : null;
+
+  if (!result) return;
+  const { error } = result;
   if (error) return;
-  router.replace(type === 'recovery' ? '/reset-password' : '/');
+  completeWelcome();
+  const recovery = type === 'recovery' || url.includes('reset-password');
+  router.replace(recovery ? '/reset-password' : '/');
 }
 
 export function AuthDeepLinkHandler() {

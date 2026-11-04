@@ -8,6 +8,7 @@ import { AuthField } from '@/components/AuthField';
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { updateProfile, uploadAvatar } from '@/lib/account';
+import { goBackOr } from '@/lib/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 
@@ -38,7 +39,7 @@ export default function EditProfile() {
       const avatarUrl = photo ? await uploadAvatar(user.id, photo.uri, photo.mimeType) : profile?.avatar_url ?? null;
       await updateProfile(user.id, { full_name: name.trim(), city_club: city.trim() || null, avatar_url: avatarUrl });
       await refreshAccount();
-      router.back();
+      goBackOr('/profile');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'We could not save your profile. Try again.');
     } finally { setSaving(false); }

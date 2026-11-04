@@ -5,6 +5,8 @@ import { Animated, Platform, StyleSheet, View, type ColorValue } from 'react-nat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { tapFeedback } from '@/lib/feedback';
+import { usePublishedContent } from '@/lib/content-runtime';
+import { opportunities } from '@/data/opportunities';
 import { colors, fonts } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -21,7 +23,7 @@ function AnimatedTabIcon({ color, focused, name, focusedName, showDot }: { color
     }).start();
   }, [focused, progress]);
 
-  return <Animated.View style={[styles.iconShell, { transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [1, -2] }) }, { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) }] }]}>
+  return <Animated.View style={[styles.iconShell, { transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -1] }) }, { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) }] }]}>
     <Animated.View style={[styles.activePill, { opacity: progress, transform: [{ scaleX: progress.interpolate({ inputRange: [0, 1], outputRange: [.72, 1] }) }] }]}/>
     <Ionicons name={focused && focusedName ? focusedName : name} color={color} size={21} />
     {showDot ? <View style={[styles.updateDot, focused && styles.updateDotFocused]}/> : null}
@@ -36,36 +38,46 @@ const icon = (name: IconName, focusedName?: IconName, showDot = false) =>
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const publishedOpportunities=usePublishedContent('opportunities');
+  const opportunityCount=publishedOpportunities.length?publishedOpportunities.filter(item=>item.visible).length:opportunities.length;
   return (
     <Tabs
       screenListeners={{ tabPress: () => { void tapFeedback(); } }}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.pinkDeep,
-        tabBarInactiveTintColor: '#746D71',
+        tabBarActiveTintColor: colors.ink,
+        tabBarInactiveTintColor: colors.ink,
         tabBarHideOnKeyboard: true,
-        tabBarItemStyle: { paddingTop: 5 },
-        tabBarLabelStyle: { fontSize: 10, lineHeight: 13, fontFamily: fonts.bodySemibold, marginTop: 2 },
+        tabBarItemStyle: { paddingTop: 7, borderRadius: 18 },
+        tabBarLabelStyle: { fontSize: 9, lineHeight: 12, fontFamily: fonts.bodySemibold, marginTop: 3 },
+        tabBarBadgeStyle:{backgroundColor:colors.pinkDeep,color:'white',fontSize:8,lineHeight:17,fontFamily:fonts.bodyBold,minWidth:17,height:17,borderRadius:9,borderWidth:2,borderColor:'white'},
         tabBarStyle: {
-          height: 64 + Math.max(insets.bottom, 8),
-          paddingTop: 5,
-          paddingBottom: Math.max(insets.bottom, 8),
+          height: 66 + Math.max(insets.bottom, 5),
+          paddingTop: 4,
+          paddingBottom: Math.max(insets.bottom, 5),
           backgroundColor: colors.surface,
-          borderTopColor: colors.line,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          elevation: 12,
-          shadowColor: '#2B1922',
-          shadowOpacity: .08,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: -5 },
+          borderTopWidth: 0,
+          marginHorizontal: 14,
+          marginBottom: 10,
+          borderRadius: 26,
+          borderWidth: 1,
+          borderColor: '#EEE9EC',
+          elevation: 13,
+          shadowColor: '#231D20',
+          shadowOpacity: .11,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
         },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline', 'home') }} />
-      <Tabs.Screen name="grow" options={{ title: 'Grow', tabBarIcon: icon('trending-up-outline', 'trending-up') }} />
+      <Tabs.Screen name="learn" options={{ title: 'Learn', tabBarIcon: icon('book-outline', 'book') }} />
+      <Tabs.Screen name="mentorship" options={{ title: 'Mentorship', tabBarIcon: icon('chatbubbles-outline', 'chatbubbles') }} />
+      <Tabs.Screen name="opportunities" options={{ title: 'Opportunities', tabBarBadge:opportunityCount||undefined, tabBarIcon: icon('briefcase-outline', 'briefcase') }} />
       <Tabs.Screen name="community" options={{ title: 'Community', tabBarIcon: icon('people-outline', 'people') }} />
-      <Tabs.Screen name="opportunities" options={{ title: 'Opportunities', tabBarIcon: icon('briefcase-outline', 'briefcase', true) }} />
-      <Tabs.Screen name="profile" options={{ title: 'My GWMB', tabBarIcon: icon('sparkles-outline', 'sparkles') }} />
+      <Tabs.Screen name="grow" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="grow 2" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -79,10 +91,11 @@ const styles = StyleSheet.create({
   },
   activePill: {
     position: 'absolute',
-    width: 44,
-    height: 31,
-    borderRadius: 12,
-    backgroundColor: colors.pinkSoft,
+    width: 22,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.ink,
+    bottom: -1,
   },
   updateDot: {
     position: 'absolute',

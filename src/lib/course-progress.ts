@@ -14,13 +14,25 @@ const key=(userId:string,courseId:string)=>`gwmb-course-progress:${userId}:${cou
 function readLocal(userId:string,courseId:string){try{const value=globalThis.localStorage?.getItem(key(userId,courseId));return value?JSON.parse(value) as CourseProgress:null}catch{return null}}
 function writeLocal(progress:CourseProgress){try{globalThis.localStorage?.setItem(key(progress.user_id,progress.course_id),JSON.stringify(progress))}catch{/* Best-effort offline fallback. */}}
 
-export function coursePercent(progress:CourseProgress|null,totalLessons:number){if(!progress||!totalLessons)return 0;return Math.round(progress.completed_lesson_ids.length/totalLessons*100)}
+export function coursePercent(progress:CourseProgress|null,totalLessons:number){
+  if(!progress||!totalLessons)return 0;
+  const completed=Array.isArray(progress.completed_lesson_ids)?progress.completed_lesson_ids:[];
+  return Math.round(completed.length/totalLessons*100);
+}
 
 export async function loadCourseProgress(userId:string,courseId:string){
   const local=readLocal(userId,courseId);
   const{data,error}=await supabase.from('course_progress').select('*').eq('user_id',userId).eq('course_id',courseId).maybeSingle();
   if(error||!data)return{progress:local,cloud:false};
   const progress=data as CourseProgress;writeLocal(progress);return{progress,cloud:true};
+}
+
+export async function loadAllCourseProgress(userId:string){
+  const{data,error}=await supabase.from('course_progress').select('*').eq('user_id',userId).order('updated_at',{ascending:false});
+  if(error)return{progress:[] as CourseProgress[],cloud:false};
+  const progress=(data??[]) as CourseProgress[];
+  progress.forEach(writeLocal);
+  return{progress,cloud:true};
 }
 
 export async function startCourse(userId:string,courseId:string,firstLessonId:string){

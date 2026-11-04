@@ -5,12 +5,24 @@ export type EventRegistration = {
   id: string;
   user_id: string;
   event_id: string;
+  event_title: string | null;
+  event_starts_at: string | null;
+  event_route: string | null;
   full_name: string;
   email: string;
   learning_goal: string | null;
   status: EventRegistrationStatus;
   registered_at: string;
   updated_at: string;
+};
+
+export type EventMeetingAccess={
+  meeting_url:string|null;
+  starts_at:string;
+  available_at:string;
+  closes_at:string;
+  join_available:boolean;
+  unavailable_reason:string|null;
 };
 
 const registrationsKey = (userId: string) => `gwmb-event-registrations:${userId}`;
@@ -44,17 +56,27 @@ export async function loadEventRegistration(userId: string, eventId: string) {
   return { registration, cloud: true };
 }
 
-export async function registerForEvent(input: { userId: string; eventId: string; fullName: string; email: string; learningGoal: string; status: Exclude<EventRegistrationStatus, 'cancelled'> }) {
+export async function loadRegisteredEventMeeting(eventId:string){
+  const{data,error}=await supabase.rpc('get_registered_event_meeting',{p_event_id:eventId});
+  const access=Array.isArray(data)?data[0]??null:data??null;
+  return{access:access as EventMeetingAccess|null,error};
+}
+
+export async function registerForEvent(input: { userId: string; eventId: string; eventTitle?: string; eventStartsAt?: string; eventRoute?: string; fullName: string; email: string; learningGoal: string; status: Exclude<EventRegistrationStatus, 'cancelled'> }) {
   const current = readJson<EventRegistration[]>(registrationsKey(input.userId), []);
   const existing = current.find((item) => item.event_id === input.eventId);
-  if (existing && existing.status !== 'cancelled') return { ok: false as const, duplicate: true as const, cloud: false, registration: existing };
-  const now = new Date().toISOString();
-  const payload = { user_id: input.userId, event_id: input.eventId, full_name: input.fullName, email: input.email, learning_goal: input.learningGoal || null, status: input.status, registered_at: now, updated_at: now };
-  const { data, error } = await supabase.from('event_registrations').upsert(payload, { onConflict: 'user_id,event_id' }).select('*').single();
-  const registration = !error && data ? data as EventRegistration : { id: existing?.id ?? `local-${Date.now()}`, ...payload };
+  if (existing && existing.status !== 'cancelled') return { ok: false as const, duplicate: true as const, cloud: true, registration: existing, error: null };
+  const { data, error } = await supabase.rpc('register_for_event', {
+    p_event_id: input.eventId,
+    p_full_name: input.fullName,
+    p_email: input.email,
+    p_learning_goal: input.learningGoal || null,
+  });
+  if (error || !data) return { ok: false as const, duplicate: false as const, cloud: false, registration: null, error };
+  const registration = data as EventRegistration;
   const next = [registration, ...current.filter((item) => item.event_id !== input.eventId)];
   writeJson(registrationsKey(input.userId), next);
-  return { ok: true as const, duplicate: false as const, cloud: !error, registration };
+  return { ok: true as const, duplicate: false as const, cloud: true, registration, error: null };
 }
 
 export async function cancelEventRegistration(userId: string, eventId: string) {

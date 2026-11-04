@@ -7,6 +7,15 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 export type GrowFeature = { kind:string; access:string; title:string; description:string; meta:string; route:string; tone:'pink'|'dark'|'blue'|'gold'|'purple' };
 export type GrowCategory = { slug:GrowSlug; title:string; shortTitle:string; icon:IconName; description:string; kicker:string; heroTitle:string; heroCopy:string; tone:GrowFeature['tone']; filters:string[]; sectionTitle:string; features:GrowFeature[] };
 
+export const growCategoryColors: Record<GrowSlug, string> = {
+  career: '#E62B7F',
+  mentorship: '#3150E8',
+  learning: '#111011',
+  money: '#FFC928',
+  'personal-growth': '#FF6700',
+  leadership: '#7A35D1',
+};
+
 export const growCategories: GrowCategory[] = [
   {slug:'career',title:'Career & Marketplace Preparation',shortTitle:'Career',icon:'briefcase-outline',description:'Get prepared for opportunities and the workplace.',kicker:'CAREER & MARKETPLACE PREPARATION',heroTitle:'Show up ready.',heroCopy:'Build a stronger CV, sharpen your interviews and position yourself with confidence.',tone:'pink',filters:['All','Live Clinics','Courses','Replays','Resources'],sectionTitle:'Practical support',features:[
     {kind:'Practical clinic',access:'Members Only',title:'Live CV Review',description:'Get focused feedback and leave with practical improvements.',meta:'05 Oct · 6:30 PM',route:'/event/cv-clinic',tone:'dark'},

@@ -6,6 +6,30 @@ export type Lesson = {
   objectives: string[];
   sections: { heading:string; body:string }[];
   reflection: string;
+  mediaType?: 'youtube' | 'upload' | 'external' | 'none';
+  mediaUrl?: string;
+  preview?: boolean;
+};
+
+export type CourseInstructor = { name:string; role:string; bio:string; imageUrl?:string };
+export type AdvancedProgram = {
+  enabled:boolean;
+  title:string;
+  partner:string;
+  summary:string;
+  duration?:string;
+  format?:string;
+  certificate?:string;
+  programmeUrl:string;
+  applicationUrl:string;
+  deadline?:string;
+  intake?:string;
+  standardPrice?:string;
+  status:'open'|'closing-soon'|'closed'|'coming-soon';
+  offerType:'none'|'discount'|'partial-scholarship'|'full-scholarship'|'fee-waiver';
+  offerLabel?:string;
+  membersOnlyOffer:boolean;
+  completionRequired:boolean;
 };
 
 export type Course = {
@@ -20,6 +44,15 @@ export type Course = {
   overview: string;
   resources: string[];
   lessons: Lesson[];
+  category: 'tech' | 'digital' | 'creative' | 'business' | 'professional' | 'personal-growth' | 'smart-money' | 'leadership';
+  subcategory: string;
+  source: 'GWMB' | 'Tech School Africa' | 'Learning Partner';
+  benefits: string[];
+  certificate?: boolean;
+  instructor?: CourseInstructor;
+  imageUrl?: string;
+  resourceLinks?: Record<string,string>;
+  advancedProgram?: AdvancedProgram;
 };
 
 const cvLessons:Lesson[]=[
@@ -34,8 +67,13 @@ const cvLessons:Lesson[]=[
 function previewLesson(id:string,title:string):Lesson{return{id,title,duration:'8 min',summary:'A focused lesson with practical guidance.',objectives:['Understand the core idea','Apply it to your own development'],sections:[{heading:'Lesson preview',body:'This course will use the same guided lesson experience as Build a CV That Gets Noticed. Full learning content will be added in the content phase.'}],reflection:'What is one action you can take after this lesson?'};}
 
 export const courses:Record<string,Course>={
-  'workplace-foundations':{id:'workplace-foundations',eyebrow:'CAREER ESSENTIALS',title:'Build a CV that gets noticed',promise:'Turn your experience into a clear, confident CV that opens doors.',duration:'42 min',rating:'4.9',tone:'#A81455',access:'OPEN ACCESS',overview:'A practical, example-led course designed to help you explain your value clearly and apply with confidence.',resources:['CV checklist','Action-word bank','Editable CV planner'],lessons:cvLessons},
-  'public-speaking':{id:'public-speaking',eyebrow:'COMMUNICATION SKILLS',title:'Confident Public Speaking',promise:'Structure your message and speak with greater clarity and calm.',duration:'58 min',rating:'4.8',tone:'#3E45E8',access:'MEMBERS ONLY',overview:'Short lessons and guided practice for presentations and interviews.',resources:['Presentation planner','Practice scorecard'],lessons:['Know your audience','Build a memorable message','Use your voice well','Confident body language','Handling nerves','Presenting online','Your practice presentation'].map((title,index)=>previewLesson(`lesson-${index+1}`,title))},
-  budgeting:{id:'budgeting',eyebrow:'SMART MONEY GIRL',title:'Budgeting Without the Stress',promise:'Build a realistic budget that fits your actual life.',duration:'36 min',rating:'4.9',tone:'#D99A20',access:'OPEN ACCESS',overview:'A shame-free introduction to intentional money decisions.',resources:['Monthly budget sheet','Expense tracker'],lessons:['Where your money goes','Needs, wants and priorities','Build your first budget','Create a weekly money rhythm'].map((title,index)=>previewLesson(`lesson-${index+1}`,title))},
-  'self-leadership':{id:'self-leadership',eyebrow:'LEADERSHIP DEVELOPMENT',title:'Leading Yourself First',promise:'Build ownership, self-awareness and dependable habits.',duration:'48 min',rating:'4.8',tone:'#111111',access:'OPEN ACCESS',overview:'Build the habits and confidence to lead from where you are.',resources:['Values exercise','Habit builder'],lessons:['What self-leadership means','Know your values','Own your choices','Build dependable habits','Your leadership plan'].map((title,index)=>previewLesson(`lesson-${index+1}`,title))},
+  'workplace-foundations':{id:'workplace-foundations',eyebrow:'CAREER ESSENTIALS · GWMB',title:'Build a CV that gets noticed',promise:'Turn your experience into a clear, confident CV that opens doors.',duration:'42 min',rating:'4.9',tone:'#A81455',access:'OPEN ACCESS',overview:'A practical, example-led course designed to help you explain your value clearly and apply with confidence. When you are ready to build, review or save your actual CV, open CV Builder from Opportunities.',resources:['CV checklist','Action-word bank','CV Builder in Opportunities'],lessons:cvLessons,category:'professional',subcategory:'Career Readiness',source:'GWMB',benefits:['Beginner','Certificate','Free']},
+  'public-speaking':{id:'public-speaking',eyebrow:'COMMUNICATION SKILLS',title:'Confident Public Speaking',promise:'Structure your message and speak with greater clarity and calm.',duration:'58 min',rating:'4.8',tone:'#3E45E8',access:'MEMBERS ONLY',overview:'Short lessons and guided practice for presentations and interviews.',resources:['Presentation planner','Practice scorecard'],lessons:['Know your audience','Build a memorable message','Use your voice well','Confident body language','Handling nerves','Presenting online','Your practice presentation'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'professional',subcategory:'Communication',source:'GWMB',benefits:['Beginner','Certificate','Members Only']},
+  budgeting:{id:'budgeting',eyebrow:'SMART MONEY GIRL',title:'Budgeting Without the Stress',promise:'Build a realistic budget that fits your actual life.',duration:'36 min',rating:'4.9',tone:'#D99A20',access:'OPEN ACCESS',overview:'A shame-free introduction to intentional money decisions.',resources:['Monthly budget sheet','Expense tracker'],lessons:['Where your money goes','Needs, wants and priorities','Build your first budget','Create a weekly money rhythm'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'smart-money',subcategory:'Budgeting',source:'GWMB',benefits:['Beginner','Free']},
+  'self-leadership':{id:'self-leadership',eyebrow:'LEADERSHIP DEVELOPMENT',title:'Leading Yourself First',promise:'Build ownership, self-awareness and dependable habits.',duration:'48 min',rating:'4.8',tone:'#111111',access:'OPEN ACCESS',overview:'Build the habits and confidence to lead from where you are.',resources:['Values exercise','Habit builder'],lessons:['What self-leadership means','Know your values','Own your choices','Build dependable habits','Your leadership plan'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'leadership',subcategory:'Self Leadership',source:'GWMB',benefits:['Beginner','Certificate','Free']},
+  'tech-foundations':{id:'tech-foundations',eyebrow:'TECH FOUNDATIONS · TECH SCHOOL AFRICA',title:'How Technology Careers Work',promise:'Understand the major paths in technology and where your strengths may fit.',duration:'45 min',rating:'4.8',tone:'#1266D6',access:'OPEN ACCESS',overview:'A beginner-friendly map of technology careers, skills and practical entry points.',resources:['Tech career map','Skills reflection'],lessons:['The technology landscape','Software and engineering','Data and AI','Product and design','Choose an entry point'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'tech',subcategory:'Career Discovery',source:'Tech School Africa',benefits:['Beginner','Certificate','Free']},
+  'digital-marketing':{id:'digital-marketing',eyebrow:'DIGITAL SKILLS · TECH SCHOOL AFRICA',title:'Digital Marketing Fundamentals',promise:'Learn how brands find, engage and convert audiences online.',duration:'1 hr 12 min',rating:'4.9',tone:'#7347D8',access:'OPEN ACCESS',overview:'A practical introduction to channels, content, audiences and campaign thinking.',resources:['Channel planner','Campaign brief'],lessons:['Digital marketing today','Know your audience','Content and channels','Campaign planning','Measure what matters','Build a sample campaign'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'digital',subcategory:'Marketing',source:'Tech School Africa',benefits:['Beginner','Certificate','Free']},
+  'creative-thinking':{id:'creative-thinking',eyebrow:'CREATIVE PRACTICE · LEARNING PARTNER',title:'Creative Thinking for Real Projects',promise:'Turn ideas into clearer concepts, useful work and stronger portfolios.',duration:'52 min',rating:'4.7',tone:'#E25B79',access:'MEMBERS ONLY',overview:'Use simple creative methods to generate, shape and present ideas.',resources:['Idea workbook','Project prompt cards'],lessons:['Start with a useful problem','Generate stronger ideas','Choose what to develop','Make and test quickly','Present the work'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'creative',subcategory:'Creative Practice',source:'Learning Partner',benefits:['Beginner','Certificate','Members Only']},
+  'business-basics':{id:'business-basics',eyebrow:'BUSINESS ESSENTIALS',title:'Business Basics for Young Professionals',promise:'Understand how organisations create value, operate and make decisions.',duration:'55 min',rating:'4.8',tone:'#168A72',access:'OPEN ACCESS',overview:'A clear foundation in customers, operations, money and business decision-making.',resources:['Business model canvas','Decision checklist'],lessons:['How a business creates value','Customers and markets','Operations and delivery','Revenue and costs','Make better business decisions'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'business',subcategory:'Business Foundations',source:'GWMB',benefits:['Beginner','Certificate','Free']},
+  'confidence-in-action':{id:'confidence-in-action',eyebrow:'PERSONAL GROWTH',title:'Confidence You Can Practise',promise:'Build confidence through small, repeatable actions instead of waiting to feel ready.',duration:'40 min',rating:'4.9',tone:'#D43B88',access:'OPEN ACCESS',overview:'A grounded course for recognising your strengths, acting through doubt and growing with intention.',resources:['Confidence tracker','Small wins journal'],lessons:['What confidence really is','Notice your evidence','Act before you feel ready','Recover from setbacks','Build your confidence practice'].map((title,index)=>previewLesson(`lesson-${index+1}`,title)),category:'personal-growth',subcategory:'Confidence',source:'GWMB',benefits:['Beginner','Free']},
 };
