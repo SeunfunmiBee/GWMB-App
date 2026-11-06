@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { sendEmail } from '../email';
 import type { Env } from '../env';
 import { body, HttpError, nowIso, requireUser, router } from '../http';
+import { timingSafeEqual } from '../identity';
 
 export const membership = router();
 membership.use('*', requireUser);
@@ -153,7 +154,8 @@ function linkError(error: unknown) {
 
 const CODE_TTL_MS = 10 * 60_000;
 const RESEND_WAIT_MS = 60_000;
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 5; // per 24-hour window, across resends
+const ATTEMPT_WINDOW_MS = 24 * 60 * 60_000;
 
 async function pendingRequest(env: Env, userId: string) {
   const request = await env.DB.prepare('select membership_email, membership_record_id, status from membership_verification_requests where user_id = ?')
@@ -170,20 +172,29 @@ async function codeHash(env: Env, userId: string, code: string) {
 membership.post('/email-code/send', async (c) => {
   const userId = c.get('userId');
   const request = await pendingRequest(c.env, userId);
-  const existing = await c.env.DB.prepare('select sent_at from membership_email_challenges where user_id = ?').bind(userId).first<{ sent_at: string }>();
+  const existing = await c.env.DB.prepare('select sent_at, attempts, created_at from membership_email_challenges where user_id = ?').bind(userId)
+    .first<{ sent_at: string; attempts: number; created_at: string }>();
   if (existing && Date.now() - Date.parse(existing.sent_at) < RESEND_WAIT_MS) throw new HttpError(429, 'Wait one minute before requesting another code.');
+  const windowOpen = existing && Date.now() - Date.parse(existing.created_at) < ATTEMPT_WINDOW_MS;
+  if (windowOpen && existing.attempts >= MAX_ATTEMPTS) throw new HttpError(429, 'Too many attempts. Try again tomorrow or request manual review.');
 
+  // The guess budget (MAX_ATTEMPTS per 24 hours) survives resends; only a new window resets it.
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, '0');
+  const now = nowIso();
   await c.env.DB.prepare(
-    `insert into membership_email_challenges (user_id, membership_record_id, code_hash, expires_at, attempts, sent_at) values (?, ?, ?, ?, 0, ?)
+    `insert into membership_email_challenges (user_id, membership_record_id, code_hash, expires_at, attempts, sent_at, created_at) values (?1, ?2, ?3, ?4, 0, ?5, ?5)
      on conflict (user_id) do update set membership_record_id = excluded.membership_record_id, code_hash = excluded.code_hash,
-       expires_at = excluded.expires_at, attempts = 0, sent_at = excluded.sent_at`,
-  ).bind(userId, request.membership_record_id, await codeHash(c.env, userId, code), new Date(Date.now() + CODE_TTL_MS).toISOString(), nowIso()).run();
+       expires_at = excluded.expires_at, sent_at = excluded.sent_at,
+       attempts = case when membership_email_challenges.created_at < ?6 then 0 else membership_email_challenges.attempts end,
+       created_at = case when membership_email_challenges.created_at < ?6 then excluded.created_at else membership_email_challenges.created_at end`,
+  ).bind(userId, request.membership_record_id, await codeHash(c.env, userId, code), new Date(Date.now() + CODE_TTL_MS).toISOString(), now,
+    new Date(Date.now() - ATTEMPT_WINDOW_MS).toISOString()).run();
 
   try {
     await sendEmail(c.env, request.membership_email, 'Your GWMB membership verification code', `Enter this code in the GWMB app to confirm your membership email: ${code}\n\nIt expires in 10 minutes. If you did not request this, you can ignore this email.`);
   } catch {
-    await c.env.DB.prepare('delete from membership_email_challenges where user_id = ?').bind(userId).run();
+    // Expire the undelivered code but keep the row, so the attempt budget is not reset.
+    await c.env.DB.prepare('update membership_email_challenges set expires_at = ? where user_id = ?').bind(new Date(0).toISOString(), userId).run();
     throw new HttpError(502, 'The verification email could not be delivered. Request manual review for now.');
   }
   return c.json({ ok: true, message: 'We sent a 6-digit code to your registered membership email.' });
@@ -193,14 +204,17 @@ membership.post('/email-code/verify', async (c) => {
   const userId = c.get('userId');
   const { code } = await body(c, z.object({ code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.') }));
   await pendingRequest(c.env, userId);
-  const challenge = await c.env.DB.prepare('select * from membership_email_challenges where user_id = ?').bind(userId)
-    .first<{ membership_record_id: string; code_hash: string; expires_at: string; attempts: number }>();
-  if (!challenge || Date.parse(challenge.expires_at) < Date.now()) throw new HttpError(400, 'This code has expired. Request a new code.');
-  if (challenge.attempts >= MAX_ATTEMPTS) throw new HttpError(429, 'Too many attempts. Request a new code.');
-  if ((await codeHash(c.env, userId, code)) !== challenge.code_hash) {
-    await c.env.DB.prepare('update membership_email_challenges set attempts = attempts + 1 where user_id = ?').bind(userId).run();
-    throw new HttpError(400, 'That code is not correct.');
+  // Spend one attempt atomically *before* comparing, so parallel guesses cannot exceed the budget.
+  const challenge = await c.env.DB.prepare(
+    `update membership_email_challenges set attempts = attempts + 1
+     where user_id = ? and attempts < ? and expires_at > ? returning membership_record_id, code_hash`,
+  ).bind(userId, MAX_ATTEMPTS, nowIso()).first<{ membership_record_id: string; code_hash: string }>();
+  if (!challenge) {
+    const row = await c.env.DB.prepare('select attempts from membership_email_challenges where user_id = ?').bind(userId).first<{ attempts: number }>();
+    if (row && row.attempts >= MAX_ATTEMPTS) throw new HttpError(429, 'Too many attempts. Try again tomorrow or request manual review.');
+    throw new HttpError(400, 'This code has expired. Request a new code.');
   }
+  if (!timingSafeEqual(await codeHash(c.env, userId, code), challenge.code_hash)) throw new HttpError(400, 'That code is not correct.');
 
   const record = await c.env.DB.prepare('select linked_user_id, status from membership_records where id = ?').bind(challenge.membership_record_id)
     .first<{ linked_user_id: string | null; status: string }>();

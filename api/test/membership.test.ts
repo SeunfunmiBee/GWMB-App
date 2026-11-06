@@ -141,6 +141,22 @@ describe('membership email ownership code', () => {
     expect(await membershipOf(user.id)).toEqual({ status: 'verified', membership_record_id: recordId });
   });
 
+  it('cannot exceed the attempt budget with parallel guesses', async () => {
+    const { user } = await pendingLink();
+    await api(user, 'POST', '/v1/membership/email-code/send');
+    const results = await Promise.all(Array.from({ length: 12 }, () => api(user, 'POST', '/v1/membership/email-code/verify', { code: '000000' })));
+    expect(results.filter((r) => r.status === 400)).toHaveLength(5);
+    expect(results.filter((r) => r.status === 429)).toHaveLength(7);
+  });
+
+  it('does not restore the guess budget when a new code is sent', async () => {
+    const { user } = await pendingLink();
+    await api(user, 'POST', '/v1/membership/email-code/send');
+    for (let i = 0; i < 5; i += 1) await api(user, 'POST', '/v1/membership/email-code/verify', { code: '000000' });
+    await env.DB.prepare("update membership_email_challenges set sent_at = '2000-01-01T00:00:00.000Z' where user_id = ?").bind(user.id).run();
+    expect((await api(user, 'POST', '/v1/membership/email-code/send')).status).toBe(429);
+  });
+
   it('locks out after five wrong attempts', async () => {
     const { user } = await pendingLink();
     await api(user, 'POST', '/v1/membership/email-code/send');
