@@ -6,11 +6,8 @@ import {
   type MentorshipSession,
   type MentorshipType,
 } from "@/data/mentorship";
+import { apiCall } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-
-const publicSessionColumns =
-  "id,title,mentorship_type,industry,subfield,description,starts_at,registration_deadline,capacity,access_level,replay_url,resources,eligibility,status,timezone,recording_allowed,published_at,completed_at,cancelled_at,audience_type,audience_fields,audience_subfields,selected_user_ids,notification_channels,distribution_surfaces,feature_level,mentor_confirmed_at,attendance_recorded_at,replay_expected,created_at,updated_at";
-const ADMIN_NETWORK_LIMIT = 500;
 
 export type MentorshipRegistration = {
   id: string;
@@ -133,14 +130,7 @@ export type MentorshipOperationsTask = {
 };
 
 export async function loadMentors() {
-  const { data, error } = await supabase
-    .from("mentors")
-    .select(
-      "id,full_name,photo_url,job_title,organisation,bio,industry,subfields,expertise,guidance_topics,mentorship_types,active,publish_public_profile",
-    )
-    .eq("active", true)
-    .eq("publish_public_profile", true)
-    .order("full_name");
+  const { data, error } = await apiCall<Mentor[]>("/v1/mentorship/mentors");
   return {
     mentors: error || !data?.length ? demoMentors : (data as Mentor[]),
     cloud: !error,
@@ -148,14 +138,7 @@ export async function loadMentors() {
 }
 
 export async function loadMentor(id: string) {
-  const { data, error } = await supabase
-    .from("mentors")
-    .select(
-      "id,full_name,photo_url,job_title,organisation,bio,industry,subfields,expertise,guidance_topics,mentorship_types,active,publish_public_profile",
-    )
-    .eq("id", id)
-    .eq("publish_public_profile", true)
-    .maybeSingle();
+  const { data, error } = await apiCall<Mentor | null>(`/v1/mentorship/mentors/${encodeURIComponent(id)}`);
   return {
     mentor:
       error || !data
@@ -166,22 +149,10 @@ export async function loadMentor(id: string) {
 }
 
 export async function loadMentorshipSessions() {
-  const { data, error } = await supabase
-    .from("mentorship_sessions")
-    .select(
-      `${publicSessionColumns},mentorship_session_mentors(mentor:mentors(id,full_name,photo_url,job_title,organisation,bio,industry,expertise,guidance_topics,mentorship_types,active))`,
-    )
-    .in("status", ["published", "upcoming", "live", "completed"])
-    .order("starts_at");
+  const { data, error } = await apiCall<MentorshipSession[]>("/v1/mentorship/sessions");
   if (error || !data?.length)
     return { sessions: demoMentorshipSessions, cloud: false };
-  const sessions = data.map((row: Record<string, unknown>) => ({
-    ...row,
-    mentors: (
-      (row.mentorship_session_mentors as { mentor: Mentor }[] | undefined) ?? []
-    ).map((item) => item.mentor),
-  })) as MentorshipSession[];
-  return { sessions, cloud: true };
+  return { sessions: data, cloud: true };
 }
 
 export async function loadMentorshipSession(id: string) {
@@ -195,11 +166,7 @@ export async function loadMentorshipSession(id: string) {
 }
 
 export async function loadMentorshipRegistrations(userId: string) {
-  const { data, error } = await supabase
-    .from("mentorship_registrations")
-    .select("*")
-    .eq("user_id", userId)
-    .order("registered_at", { ascending: false });
+  const { data, error } = await apiCall<MentorshipRegistration[]>("/v1/mentorship/registrations");
   const local = readLocal<MentorshipRegistration[]>(
     registrationsKey(userId),
     [],
@@ -223,10 +190,7 @@ export async function registerForMentorshipSession(
   // arguments remain in the public helper signature so existing screens do not
   // need to predict whether a confirmed seat or waitlist place will be issued.
   void status;
-  const { data, error } = await supabase.rpc(
-    "register_for_mentorship_session",
-    { p_session_id: sessionId },
-  );
+  const { data, error } = await apiCall<MentorshipRegistration>(`/v1/mentorship/sessions/${encodeURIComponent(sessionId)}/register`, { method: "POST" });
   const now = new Date().toISOString();
   const registration = (data as MentorshipRegistration | null) ?? {
     id: `local-${sessionId}`,
@@ -263,19 +227,12 @@ export async function cancelMentorshipRegistration(
       : item,
   );
   writeLocal(registrationsKey(userId), local);
-  return supabase
-    .from("mentorship_registrations")
-    .update({ status: "cancelled" })
-    .eq("user_id", userId)
-    .eq("session_id", sessionId);
+  return apiCall<MentorshipRegistration>(`/v1/mentorship/sessions/${encodeURIComponent(sessionId)}/cancel`, { method: "POST" });
 }
 
 export async function loadIndustryInterests(userId: string) {
   const local = readLocal<MentorshipInterest[]>(interestsKey(userId), []);
-  const { data, error } = await supabase
-    .from("mentorship_industry_interests")
-    .select("industry,subfield,notifications_enabled")
-    .eq("user_id", userId);
+  const { data, error } = await apiCall<MentorshipInterest[]>("/v1/mentorship/interests");
   return {
     interests: error ? local : ((data ?? local) as MentorshipInterest[]),
     error,
@@ -295,30 +252,11 @@ export async function saveIndustryInterest(
     (item) => !(item.industry === industry && item.subfield === subfield),
   );
   writeLocal(interestsKey(userId), [interest, ...local]);
-  const result = await supabase
-    .from("mentorship_industry_interests")
-    .upsert(
-      { user_id: userId, ...interest },
-      { onConflict: "user_id,industry,subfield" },
-    );
-  return result.error?.message.includes("subfield")
-    ? supabase
-        .from("mentorship_industry_interests")
-        .upsert(
-          { user_id: userId, industry, notifications_enabled: true },
-          { onConflict: "user_id,industry" },
-        )
-    : result;
+  return apiCall("/v1/mentorship/interests", { method: "PUT", body: JSON.stringify(interest) });
 }
 
 export async function loadMentorshipApplications(userId: string) {
-  const { data, error } = await supabase
-    .from("mentorship_applications")
-    .select(
-      "*,requested_mentor:mentors!mentorship_applications_requested_mentor_id_fkey(*),assigned_mentor:mentors!mentorship_applications_assigned_mentor_id_fkey(*)",
-    )
-    .eq("user_id", userId)
-    .order("submitted_at", { ascending: false });
+  const { data, error } = await apiCall<MentorshipApplication[]>("/v1/mentorship/applications");
   const applications = (data ?? []).map((row) =>
     row.status === "booking_access_released"
       ? { ...row, status: "approved" }
@@ -343,85 +281,45 @@ export async function submitMentorshipApplication(
     | "assigned_mentor"
   >,
 ) {
-  const { data, error } = await supabase.rpc("submit_mentorship_application", {
-    p_requested_mentor_id: input.requested_mentor_id,
-    p_recommend_for_me: input.recommend_for_me,
-    p_industry: input.industry,
-    p_guidance_request: input.guidance_request,
-    p_desired_outcome: input.desired_outcome,
-    p_career_stage: input.career_stage,
-    p_supporting_information: input.supporting_information,
+  const { data, error } = await apiCall<MentorshipApplication>("/v1/mentorship/applications", {
+    method: "POST",
+    body: JSON.stringify({
+      requested_mentor_id: input.requested_mentor_id,
+      recommend_for_me: input.recommend_for_me,
+      industry: input.industry,
+      guidance_request: input.guidance_request,
+      desired_outcome: input.desired_outcome,
+      career_stage: input.career_stage,
+      supporting_information: input.supporting_information,
+    }),
   });
   return { application: data as MentorshipApplication | null, error };
 }
 
 export async function getApprovedBookingLink(applicationId: string) {
-  const { data, error } = await supabase.rpc(
-    "get_approved_mentorship_booking",
-    { p_application_id: applicationId },
-  );
-  return {
-    bookingUrl:
-      (data?.[0] as { booking_url?: string } | undefined)?.booking_url ?? null,
-    error,
-  };
+  const { data, error } = await apiCall<{ booking_url: string | null }>(`/v1/mentorship/applications/${applicationId}/booking`);
+  return { bookingUrl: data?.booking_url ?? null, error };
 }
 
 export async function isMentorshipAdmin() {
-  const { data, error } = await supabase.rpc("is_app_admin");
-  return { isAdmin: Boolean(data), error };
+  const { data, error } = await apiCall<{ isAdmin: boolean }>("/v1/me");
+  return { isAdmin: data?.isAdmin === true, error };
 }
 export async function loadAdminMentorship() {
-  await supabase.rpc("refresh_mentorship_operations_tasks");
-  const [
-    applications,
-    mentors,
-    operations,
-    sessions,
-    sessionMentors,
-    registrations,
-    tasks,
-  ] = await Promise.all([
-    supabase
-      .from("mentorship_applications")
-      .select("*")
-      .order("submitted_at", { ascending: false })
-      .limit(ADMIN_NETWORK_LIMIT),
-    supabase
-      .from("mentors")
-      .select("*")
-      .order("full_name")
-      .limit(ADMIN_NETWORK_LIMIT),
-    supabase
-      .from("mentor_operations")
-      .select("*")
-      .order("submitted_at", { ascending: false })
-      .limit(ADMIN_NETWORK_LIMIT),
-    supabase.rpc("admin_list_mentorship_sessions").limit(ADMIN_NETWORK_LIMIT),
-    supabase
-      .from("mentorship_session_mentors")
-      .select("*")
-      .limit(ADMIN_NETWORK_LIMIT * 2),
-    supabase
-      .from("mentorship_registrations")
-      .select("*")
-      .order("registered_at", { ascending: false })
-      .limit(ADMIN_NETWORK_LIMIT * 2),
-    supabase
-      .from("mentorship_operations_tasks")
-      .select("*")
-      .eq("status", "open")
-      .order("due_at", { ascending: true })
-      .limit(100),
-  ]);
-  const sessionRows = (sessions.data ?? []) as MentorshipSession[];
-  const links = (sessionMentors.data ?? []) as {
-    session_id: string;
-    mentor_id: string;
-  }[];
-  const appRows = (applications.data ?? []) as MentorshipApplication[];
-  const opsRows = (operations.data ?? []) as MentorOperations[];
-  const mentorRows = (mentors.data ?? []).map((mentor) => {
+  const { data: admin, error } = await apiCall<{
+    applications: MentorshipApplication[];
+    mentors: Mentor[];
+    operations: MentorOperations[];
+    sessions: MentorshipSession[];
+    sessionMentors: { session_id: string; mentor_id: string }[];
+    registrations: MentorshipRegistration[];
+    tasks: MentorshipOperationsTask[];
+  }>("/v1/admin/mentorship");
+  const sessionRows = admin?.sessions ?? [];
+  const links = admin?.sessionMentors ?? [];
+  const appRows = admin?.applications ?? [];
+  const opsRows = admin?.operations ?? [];
+  const mentorRows = (admin?.mentors ?? []).map((mentor) => {
     const item = mentor as Mentor;
     const mentorSessions = sessionRows.filter((session) =>
       links.some(
@@ -466,7 +364,7 @@ export async function loadAdminMentorship() {
     } satisfies AdminMentor;
   });
   const priority = { urgent: 0, high: 1, normal: 2 };
-  const taskRows = ((tasks.data ?? []) as MentorshipOperationsTask[]).sort(
+  const taskRows = [...(admin?.tasks ?? [])].sort(
     (a, b) =>
       priority[a.priority] - priority[b.priority] ||
       (a.due_at ? new Date(a.due_at).getTime() : Number.MAX_SAFE_INTEGER) -
@@ -477,16 +375,9 @@ export async function loadAdminMentorship() {
     mentors: mentorRows,
     sessions: sessionRows,
     sessionMentors: links,
-    registrations: (registrations.data ?? []) as MentorshipRegistration[],
+    registrations: admin?.registrations ?? [],
     tasks: taskRows,
-    error:
-      applications.error ??
-      mentors.error ??
-      operations.error ??
-      sessions.error ??
-      sessionMentors.error ??
-      registrations.error ??
-      tasks.error,
+    error,
   };
 }
 export async function updateMentorshipApplication(
@@ -501,7 +392,7 @@ export async function updateMentorshipApplication(
     completed_at?: string | null;
   },
 ) {
-  return supabase.from("mentorship_applications").update(patch).eq("id", id);
+  return apiCall(`/v1/admin/mentorship/applications/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 export async function saveMentor(input: {
   id: string;
@@ -519,100 +410,35 @@ export async function saveMentor(input: {
   publish_public_profile?: boolean;
   booking_url?: string;
 }) {
-  const { booking_url, ...mentor } = input;
-  const result = await supabase
-    .from("mentors")
-    .upsert(mentor, { onConflict: "id" });
-  if (!result.error && booking_url)
-    await supabase
-      .from("mentorship_booking_links")
-      .upsert(
-        { mentor_id: input.id, booking_url },
-        { onConflict: "mentor_id" },
-      );
-  return result;
+  return apiCall("/v1/admin/mentorship/mentors", { method: "PUT", body: JSON.stringify(input) });
 }
 export async function saveMentorOperations(
   input: Partial<MentorOperations> & { mentor_id: string; email: string },
 ) {
-  const result = await supabase
-    .from("mentor_operations")
-    .upsert(input, { onConflict: "mentor_id" });
-  if (!result.error && input.private_booking_url)
-    await supabase
-      .from("mentorship_booking_links")
-      .upsert(
-        { mentor_id: input.mentor_id, booking_url: input.private_booking_url },
-        { onConflict: "mentor_id" },
-      );
-  return result;
+  const { mentor_id, ...operations } = input;
+  return apiCall(`/v1/admin/mentorship/mentors/${encodeURIComponent(mentor_id)}/operations`, { method: "PUT", body: JSON.stringify(operations) });
 }
 export async function setMentorStatus(mentorId: string, status: MentorStatus) {
-  const result = await supabase
-    .from("mentor_operations")
-    .update({ status })
-    .eq("mentor_id", mentorId);
-  if (!result.error)
-    await supabase
-      .from("mentors")
-      .update({ active: status === "active" || status === "confirmed" })
-      .eq("id", mentorId);
-  return result;
+  return apiCall(`/v1/admin/mentorship/mentors/${encodeURIComponent(mentorId)}/status`, { method: "POST", body: JSON.stringify({ status }) });
 }
 export async function setMentorPublished(mentorId: string, published: boolean) {
-  return supabase
-    .from("mentors")
-    .update(
-      published
-        ? { publish_public_profile: true, active: true }
-        : { publish_public_profile: false },
-    )
-    .eq("id", mentorId);
+  return apiCall(`/v1/admin/mentorship/mentors/${encodeURIComponent(mentorId)}/publish`, { method: "POST", body: JSON.stringify({ published }) });
 }
 export async function saveMentorshipSession(
   input: MentorshipSession & { mentor_id?: string },
 ) {
-  const { mentor_id, mentors: _, registration_count: __, ...session } = input;
-  const lifecycle = {
-    ...session,
-    published_at:
-      session.status === "published" || session.status === "upcoming"
-        ? session.published_at || new Date().toISOString()
-        : session.published_at,
-    completed_at:
-      session.status === "completed"
-        ? session.completed_at || new Date().toISOString()
-        : session.completed_at,
-    cancelled_at:
-      session.status === "cancelled" ? new Date().toISOString() : undefined,
-  };
-  const result = await supabase
-    .from("mentorship_sessions")
-    .upsert(lifecycle, { onConflict: "id" });
-  if (!result.error && mentor_id)
-    await supabase
-      .from("mentorship_session_mentors")
-      .upsert(
-        { session_id: input.id, mentor_id },
-        { onConflict: "session_id,mentor_id" },
-      );
-  return result;
+  // Lifecycle timestamps are stamped by the API.
+  const { mentors: _, registration_count: __, ...session } = input;
+  return apiCall<MentorshipSession>("/v1/admin/mentorship/sessions", { method: "PUT", body: JSON.stringify(session) });
 }
 export async function updateMentorshipAttendance(
   id: string,
   attendance_status: "attended" | "absent",
 ) {
-  const result = await supabase
-    .from("mentorship_registrations")
-    .update({ attendance_status })
-    .eq("id", id);
-  return result;
+  return apiCall(`/v1/admin/mentorship/registrations/${id}/attendance`, { method: "PATCH", body: JSON.stringify({ attendance_status }) });
 }
 export async function completeMentorshipTask(id: string) {
-  return supabase
-    .from("mentorship_operations_tasks")
-    .update({ status: "completed", completed_at: new Date().toISOString() })
-    .eq("id", id);
+  return apiCall(`/v1/admin/mentorship/tasks/${id}/complete`, { method: "POST" });
 }
 export async function importMentorSubmission(
   data: Record<string, unknown>,

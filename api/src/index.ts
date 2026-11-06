@@ -11,6 +11,7 @@ import { adminContent, content } from './routes/content';
 import { events } from './routes/events';
 import { learning } from './routes/learning';
 import { membership } from './routes/membership';
+import { adminMentorship, mentorship } from './routes/mentorship';
 import { me } from './routes/me';
 import { handleStorage } from './storage';
 
@@ -42,10 +43,12 @@ app.route('/v1/cvs', cvs);
 app.route('/v1/career/public', careerPublic);
 app.route('/v1/career', career);
 app.route('/v1/marketplace', marketplace);
+app.route('/v1/mentorship', mentorship);
 app.route('/v1/admin/content', adminContent);
 app.route('/v1/admin/opportunities', adminOpportunities);
 app.route('/v1/admin/cvs', adminCvs);
 app.route('/v1/admin/career', adminCareer);
+app.route('/v1/admin/mentorship', adminMentorship);
 app.route('/v1/admin/calendar', adminCalendar);
 
 export default app;
