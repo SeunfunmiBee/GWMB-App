@@ -22,6 +22,22 @@ The old `supabase/` folder stays in the repo as the reference implementation unt
 | 5. Replace realtime subscriptions with polling | |
 | 6. Remove `@supabase/supabase-js` from the app | |
 
+### Phase 3 areas
+
+Each area: endpoints with the old access rules enforced in code, tests in `api/test/`, then the app module switched to `apiFetch`.
+
+| Area | App modules | Status |
+| --- | --- | --- |
+| Account & membership | `account.ts`, `/v1/me`, `/v1/membership` | Done (17 tests) |
+| Content, courses & events | `admin-content.ts`, `content-runtime.ts`, `course-progress.ts`, `event-store.ts`, `calendar-store.ts`, `advanced-program.ts` | Next |
+| Opportunities, CVs & career | `opportunity-store.ts`, `application-profile-store.ts`, `cv-store.ts`, `career-readiness.ts`, `marketplace-*.ts` | |
+| Mentorship | `mentorship-store.ts`, admin mentorship screens | |
+| Community & chapters | `clique-store.ts`, `chapter-admin.ts`, `community-location.tsx`, `volunteer.tsx` | |
+| Notifications | `notification-store.ts`, `use-unread-notifications.ts`, admin notifications | |
+| Admin operations | `launch-operations.ts`, `approvals.tsx`, `FeatureFlagProvider.tsx`, `local-admins.tsx`, `integrations.tsx` | |
+
+Run the API tests with `npm test` in `api/`.
+
 ## Conventions (D1)
 
 - IDs are UUID text generated in the Worker (`crypto.randomUUID()`); Better Auth uses `generateId: 'uuid'`, so user IDs are UUIDs too.

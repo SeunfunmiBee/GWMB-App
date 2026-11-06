@@ -1,11 +1,11 @@
+import { apiFetch } from '@/lib/auth';
 import { publicUrl, uploadFile } from '@/lib/storage';
-import { supabase } from '@/lib/supabase';
 import type { MembershipApplication, MembershipDetails, MembershipVerificationRequest, Profile } from '@/types/database';
 
-export async function updateProfile(userId: string, values: Pick<Profile, 'full_name' | 'city_club' | 'avatar_url'>) {
-  const { data, error } = await supabase.from('profiles').update(values).eq('id', userId).select('*').single();
-  if (error) throw error;
-  return data as Profile;
+// Account and membership data from the GWMB API (api/src/routes/me.ts, membership.ts).
+
+export async function updateProfile(_userId: string, values: Pick<Profile, 'full_name' | 'city_club' | 'avatar_url'>) {
+  return apiFetch<Profile>('/v1/me/profile', { method: 'PATCH', body: JSON.stringify(values) });
 }
 
 export async function uploadAvatar(userId: string, uri: string, mimeType?: string | null) {
@@ -18,35 +18,17 @@ export async function uploadAvatar(userId: string, uri: string, mimeType?: strin
   return `${publicUrl('avatars', path)}?v=${Date.now()}`;
 }
 
-export async function loadMembershipApplication(userId: string) {
-  const { data, error } = await supabase.from('membership_applications').select('*').eq('user_id', userId).maybeSingle();
-  if (error) throw error;
-  return data as MembershipApplication | null;
+export async function loadMembershipApplication(_userId: string) {
+  return apiFetch<MembershipApplication | null>('/v1/membership/application');
 }
 
 export async function submitMembershipApplication(input: { userId: string; fullName: string; email: string; phone: string; city: string; occupation: string; motivation: string }) {
-  const { data, error } = await supabase.from('membership_applications').insert({
-    user_id: input.userId, full_name: input.fullName, email: input.email, phone: input.phone,
-    city: input.city, occupation: input.occupation, motivation: input.motivation, status: 'submitted',
-  }).select('*').single();
-  if (error) throw error;
-  return data as MembershipApplication;
+  const { userId: _userId, ...application } = input;
+  return apiFetch<MembershipApplication>('/v1/membership/application', { method: 'POST', body: JSON.stringify(application) });
 }
 
-export async function loadVerificationRequest(userId: string) {
-  const { data, error } = await supabase.from('membership_verification_requests').select('*').eq('user_id', userId).maybeSingle();
-  if (error) throw error;
-  return data as MembershipVerificationRequest | null;
-}
-
-export async function submitVerificationRequest(input: { userId: string; email: string; phone: string; memberIdentifier: string; resubmit: boolean }) {
-  const payload = { user_id: input.userId, membership_email: input.email, phone: input.phone, member_identifier: input.memberIdentifier || null, status: 'pending', submitted_at: new Date().toISOString() };
-  const query = input.resubmit
-    ? supabase.from('membership_verification_requests').update(payload).eq('user_id', input.userId)
-    : supabase.from('membership_verification_requests').insert(payload);
-  const { data, error } = await query.select('*').single();
-  if (error) throw error;
-  return data as MembershipVerificationRequest;
+export async function loadVerificationRequest(_userId: string) {
+  return apiFetch<MembershipVerificationRequest | null>('/v1/membership/verification-request');
 }
 
 export type MembershipLinkResult = {
@@ -56,35 +38,20 @@ export type MembershipLinkResult = {
 };
 
 export async function requestMembershipLink(input: { email: string; memberIdentifier: string; chapter: string }) {
-  const membershipEmail = input.email.trim().replace(/[.,;:]+$/, '').toLowerCase();
-  const { data, error } = await supabase.rpc('submit_membership_link_request', {
-    p_membership_email: membershipEmail,
-    p_member_identifier: input.memberIdentifier.trim().toUpperCase(),
-    p_chapter: input.chapter.trim() || null,
+  return apiFetch<MembershipLinkResult>('/v1/membership/link', {
+    method: 'POST',
+    body: JSON.stringify({ membershipEmail: input.email, memberIdentifier: input.memberIdentifier.trim().toUpperCase(), chapter: input.chapter.trim() || null }),
   });
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) throw new Error('GWMB could not process this membership request.');
-  return row as MembershipLinkResult;
 }
 
 export async function loadMyMembershipDetails() {
-  const { data, error } = await supabase.rpc('get_my_membership_details');
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  return (row ?? null) as MembershipDetails | null;
+  return apiFetch<MembershipDetails | null>('/v1/membership/details');
 }
 
 export async function sendMembershipEmailCode() {
-  const { data, error } = await supabase.functions.invoke('membership-email-otp', { body:{ action:'send' } });
-  if (error) throw new Error((data as { error?:string } | null)?.error ?? error.message);
-  if (data?.error) throw new Error(data.error as string);
-  return data as { ok:true; message:string };
+  return apiFetch<{ ok: true; message: string }>('/v1/membership/email-code/send', { method: 'POST' });
 }
 
 export async function verifyMembershipEmailCode(code: string) {
-  const { data, error } = await supabase.functions.invoke('membership-email-otp', { body:{ action:'verify', code } });
-  if (error) throw new Error((data as { error?:string } | null)?.error ?? error.message);
-  if (data?.error) throw new Error(data.error as string);
-  return data as { ok:true; status:'verified'|'inactive'; message:string };
+  return apiFetch<{ ok: true; status: 'verified' | 'inactive'; message: string }>('/v1/membership/email-code/verify', { method: 'POST', body: JSON.stringify({ code }) });
 }
