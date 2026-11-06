@@ -57,6 +57,23 @@ describe('opportunity applications (submit_opportunity_application)', () => {
     expect((await api(user, 'POST', `/v1/opportunities/${closed.slug}/submit`, { motivation: MOTIVATION })).status).toBe(400);
   });
 
+  it('only saves drafts for real opportunities, keyed by slug, with the caller’s own CV', async () => {
+    const admin = await createUser({ admin: true });
+    const user = await createUser();
+    const other = await createUser();
+    const theirs = await cv(other);
+    const item = await opportunity(admin);
+    const draft = { portfolio_url: null, motivation: 'Draft text', cv_record_id: null, completion_percent: 20 };
+    expect((await api(user, 'PUT', '/v1/opportunities/no-such-opportunity/draft', draft)).status).toBe(404);
+    expect((await api(user, 'PUT', `/v1/opportunities/${item.id}/draft`, { ...draft, cv_record_id: theirs.id })).status).toBe(400);
+    const saved = await api<{ opportunity_id: string }>(user, 'PUT', `/v1/opportunities/${item.id}/draft`, draft);
+    expect(saved.body.opportunity_id).toBe(item.slug);
+    const submitted = await api<{ id: string; status: string }>(user, 'POST', `/v1/opportunities/${item.slug}/submit`, { motivation: MOTIVATION });
+    expect(submitted.body.status).toBe('submitted');
+    const rows = await env.DB.prepare('select count(*) as n from opportunity_applications where user_id = ?').bind(user.id).first<{ n: number }>();
+    expect(rows?.n).toBe(1);
+  });
+
   it('lets admins review applications and notifies the applicant', async () => {
     const admin = await createUser({ admin: true });
     const user = await createUser({ name: 'Ngozi Eze' });

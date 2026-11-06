@@ -74,6 +74,12 @@ const draftInput = z.object({
 opportunities.put('/:opportunityId/draft', async (c) => {
   const input = await body(c, draftInput);
   const userId = c.get('userId');
+  // Same checks as submit: a real, open opportunity (keyed by slug) and only the caller's own CV.
+  const item = await findOpportunity(c.env, c.req.param('opportunityId'));
+  if (!item || item.access_level === 'admin') throw new HttpError(404, 'This opportunity is not available');
+  if (input.cv_record_id && !(await c.env.DB.prepare('select 1 from cv_records where id = ? and user_id = ?').bind(input.cv_record_id, userId).first())) {
+    throw new HttpError(400, 'The selected CV is not available');
+  }
   const now = nowIso();
   const row = await c.env.DB.prepare(
     `insert into opportunity_applications (user_id, opportunity_id, portfolio_url, motivation, status, cv_record_id, completion_percent, submitted_at, updated_at)
@@ -82,7 +88,7 @@ opportunities.put('/:opportunityId/draft', async (c) => {
        cv_record_id = excluded.cv_record_id, completion_percent = excluded.completion_percent, updated_at = excluded.updated_at
        where opportunity_applications.status = 'draft'
      returning *`,
-  ).bind(userId, c.req.param('opportunityId'), input.portfolio_url || null, input.motivation, input.cv_record_id, input.completion_percent, now).first();
+  ).bind(userId, item.slug, input.portfolio_url || null, input.motivation, input.cv_record_id, input.completion_percent, now).first();
   if (!row) throw new HttpError(409, 'You have already applied for this opportunity');
   return c.json(decode('opportunity_applications', row));
 });
