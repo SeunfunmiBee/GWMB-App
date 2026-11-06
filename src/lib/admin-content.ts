@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { createSignedUrl, publicUrl, uploadFile, type UploadControl } from '@/lib/storage';
-import { getUser } from '@/lib/auth';
+import { apiCall } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 export const contentAreas = [
@@ -51,39 +51,33 @@ export type ContentItem = {
 export type ContentDraft = Omit<ContentItem, 'id' | 'created_at' | 'updated_at'> & { id?: string };
 
 export async function isAppAdmin() {
-  const { data, error } = await supabase.rpc('is_app_admin');
-  return { isAdmin: data === true, error };
+  const { data, error } = await apiCall<{ isAdmin: boolean }>('/v1/me');
+  return { isAdmin: data?.isAdmin === true, error };
 }
 
 export async function listAdminContent(area?: string) {
-  let query = supabase.from('content_items').select('*').order('sort_order').order('updated_at', { ascending: false });
-  if (area) query = query.eq('area', area);
-  const { data, error } = await query;
+  const { data, error } = await apiCall<ContentItem[]>(`/v1/admin/content${area ? `?area=${encodeURIComponent(area)}` : ''}`);
   return { data: (data ?? []) as ContentItem[], error };
 }
 
 export async function loadContentItem(id: string) {
-  const { data, error } = await supabase.from('content_items').select('*').eq('id', id).maybeSingle();
-  return { data: data as ContentItem | null, error };
+  return apiCall<ContentItem | null>(`/v1/admin/content/${id}`);
 }
 
 export async function listPublishedContent(area: ContentArea) {
-  const { data, error } = await supabase.from('content_items').select('*').eq('area', area).eq('status', 'published').eq('visible', true).order('sort_order');
+  const { data, error } = await apiCall<ContentItem[]>(`/v1/content?area=${encodeURIComponent(area)}`);
   return { data: (data ?? []) as ContentItem[], error };
 }
 
 export async function saveContentItem(draft: ContentDraft) {
-  const { data: auth } = await getUser();
-  const payload = { ...draft, updated_by: auth.user?.id ?? null };
-  if (draft.id) {
-    const { id, ...update } = payload;
-    return supabase.from('content_items').update(update).eq('id', id).select().single();
-  }
-  return supabase.from('content_items').insert({ ...payload, created_by: auth.user?.id ?? null }).select().single();
+  const { id, ...fields } = draft;
+  return id
+    ? apiCall<ContentItem>(`/v1/admin/content/${id}`, { method: 'PUT', body: JSON.stringify(fields) })
+    : apiCall<ContentItem>('/v1/admin/content', { method: 'POST', body: JSON.stringify(fields) });
 }
 
 export async function archiveContentItem(id: string) {
-  return supabase.from('content_items').update({ status: 'archived' }).eq('id', id);
+  return apiCall<ContentItem>(`/v1/admin/content/${id}/archive`, { method: 'POST' });
 }
 
 export async function pickAndUploadContentImage(area: string) {

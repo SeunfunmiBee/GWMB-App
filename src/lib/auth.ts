@@ -138,6 +138,15 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return cookie ? { cookie } : {};
 }
 
+/** `apiFetch` with the Supabase-style `{ data, error }` result the data modules already expect. */
+export async function apiCall<T>(path: string, init: RequestInit = {}): Promise<{ data: T | null; error: Error | null }> {
+  try {
+    return { data: await apiFetch<T>(path, init), error: null };
+  } catch (error) {
+    return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
+  }
+}
+
 /** JSON request to the API Worker as the signed-in user. Throws with the server's message on failure. */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = { ...(await authHeaders()), ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(init.headers as Record<string, string> | undefined) };

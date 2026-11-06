@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type EventRegistrationStatus = 'registered' | 'waitlisted' | 'cancelled';
 export type EventRegistration = {
@@ -37,7 +37,7 @@ function writeJson(key: string, value: unknown) {
 
 export async function loadEventRegistrations(userId: string) {
   const local = readJson<EventRegistration[]>(registrationsKey(userId), []);
-  const { data, error } = await supabase.from('event_registrations').select('*').eq('user_id', userId).order('registered_at', { ascending: false });
+  const { data, error } = await apiCall<EventRegistration[]>('/v1/events/registrations');
   if (error) return { registrations: local, cloud: false };
   const registrations = (data ?? []) as EventRegistration[];
   writeJson(registrationsKey(userId), registrations);
@@ -46,7 +46,7 @@ export async function loadEventRegistrations(userId: string) {
 
 export async function loadEventRegistration(userId: string, eventId: string) {
   const local = readJson<EventRegistration[]>(registrationsKey(userId), []).find((item) => item.event_id === eventId) ?? null;
-  const { data, error } = await supabase.from('event_registrations').select('*').eq('user_id', userId).eq('event_id', eventId).maybeSingle();
+  const { data, error } = await apiCall<EventRegistration | null>(`/v1/events/registrations/${encodeURIComponent(eventId)}`);
   if (error) return { registration: local, cloud: false };
   const registration = data as EventRegistration | null;
   if (registration) {
@@ -57,20 +57,17 @@ export async function loadEventRegistration(userId: string, eventId: string) {
 }
 
 export async function loadRegisteredEventMeeting(eventId:string){
-  const{data,error}=await supabase.rpc('get_registered_event_meeting',{p_event_id:eventId});
-  const access=Array.isArray(data)?data[0]??null:data??null;
-  return{access:access as EventMeetingAccess|null,error};
+  const{data,error}=await apiCall<EventMeetingAccess|null>(`/v1/events/${encodeURIComponent(eventId)}/meeting`);
+  return{access:data,error};
 }
 
 export async function registerForEvent(input: { userId: string; eventId: string; eventTitle?: string; eventStartsAt?: string; eventRoute?: string; fullName: string; email: string; learningGoal: string; status: Exclude<EventRegistrationStatus, 'cancelled'> }) {
   const current = readJson<EventRegistration[]>(registrationsKey(input.userId), []);
   const existing = current.find((item) => item.event_id === input.eventId);
   if (existing && existing.status !== 'cancelled') return { ok: false as const, duplicate: true as const, cloud: true, registration: existing, error: null };
-  const { data, error } = await supabase.rpc('register_for_event', {
-    p_event_id: input.eventId,
-    p_full_name: input.fullName,
-    p_email: input.email,
-    p_learning_goal: input.learningGoal || null,
+  const { data, error } = await apiCall<EventRegistration>(`/v1/events/${encodeURIComponent(input.eventId)}/register`, {
+    method: 'POST',
+    body: JSON.stringify({ fullName: input.fullName, email: input.email, learningGoal: input.learningGoal || null }),
   });
   if (error || !data) return { ok: false as const, duplicate: false as const, cloud: false, registration: null, error };
   const registration = data as EventRegistration;
@@ -85,6 +82,6 @@ export async function cancelEventRegistration(userId: string, eventId: string) {
   if (!existing) return { ok: false as const, cloud: false };
   const updated = { ...existing, status: 'cancelled' as const, updated_at: new Date().toISOString() };
   writeJson(registrationsKey(userId), [updated, ...current.filter((item) => item.event_id !== eventId)]);
-  const { error } = await supabase.from('event_registrations').update({ status: 'cancelled' }).eq('user_id', userId).eq('event_id', eventId);
+  const { error } = await apiCall(`/v1/events/${encodeURIComponent(eventId)}/cancel`, { method: 'POST' });
   return { ok: true as const, cloud: !error, registration: updated };
 }

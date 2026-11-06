@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { GwmbEvent } from '@/data/events';
 import type { Opportunity } from '@/data/opportunities';
 import { listPublishedContent, type ContentArea, type ContentItem } from '@/lib/admin-content';
-import { supabase } from '@/lib/supabase';
+import { subscribeToRefresh } from '@/lib/live';
 
 export type PublishedContentState = {
   items: ContentItem[];
@@ -29,11 +29,7 @@ export function usePublishedContentState(area: ContentArea): PublishedContentSta
 
   useEffect(() => {
     void Promise.resolve().then(refresh);
-    const channel = supabase
-      .channel(`published-content-${area}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_items', filter: `area=eq.${area}` }, () => void refresh())
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return subscribeToRefresh(() => void refresh());
   }, [area, refresh]);
 
   return { items, loading, error, refresh };

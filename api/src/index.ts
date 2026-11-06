@@ -2,6 +2,10 @@
 import { cors } from 'hono/cors';
 import { createAuth, webOrigins } from './auth';
 import { onError, router } from './http';
+import { adminCalendar, calendar } from './routes/calendar';
+import { adminContent, content } from './routes/content';
+import { events } from './routes/events';
+import { learning } from './routes/learning';
 import { membership } from './routes/membership';
 import { me } from './routes/me';
 import { handleStorage } from './storage';
@@ -25,5 +29,11 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env).handler(c.req.ra
 app.all('/storage/*', (c) => handleStorage(c.req.raw, c.env));
 app.route('/v1/me', me);
 app.route('/v1/membership', membership);
+app.route('/v1/content', content);
+app.route('/v1/courses', learning);
+app.route('/v1/events', events);
+app.route('/v1/calendar', calendar);
+app.route('/v1/admin/content', adminContent);
+app.route('/v1/admin/calendar', adminCalendar);
 
 export default app;

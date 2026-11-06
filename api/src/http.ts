@@ -22,6 +22,16 @@ export const requireUser = async (c: Context<AppEnv>, next: () => Promise<void>)
   await next();
 };
 
+/** Public route that also recognises a signed-in caller (sets `userId` when present). */
+export const optionalUser = async (c: Context<AppEnv>, next: () => Promise<void>) => {
+  const caller = await getCaller(c.req.raw, c.env);
+  if (caller.kind === 'user') {
+    c.set('userId', caller.id);
+    c.set('userEmail', caller.email);
+  }
+  await next();
+};
+
 /** Requires an app admin (the old `is_app_admin()` policy check). Use after `requireUser`. */
 export const requireAdmin = async (c: Context<AppEnv>, next: () => Promise<void>) => {
   if (!(await isAdmin(c.env, { kind: 'user', id: c.get('userId'), email: c.get('userEmail') }))) throw new HttpError(403, 'Admin access required.');

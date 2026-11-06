@@ -1,5 +1,4 @@
-import { getUser } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type AdvancedProgramClaim={
   claimId:string;
@@ -14,21 +13,20 @@ export type AdvancedProgramClaim={
 export type SecureAdvancedOffer={benefitCode:string;maxClaims:string;active:boolean};
 
 export async function loadMyAdvancedProgramClaim(courseSlug:string){
-  const{data,error}=await supabase.rpc('get_my_advanced_program_claim',{p_course_slug:courseSlug});
+  const{data,error}=await apiCall<AdvancedProgramClaim|null>(`/v1/courses/${encodeURIComponent(courseSlug)}/advanced-claim`);
   return{claim:(data??null) as AdvancedProgramClaim|null,error};
 }
 
 export async function claimAdvancedProgramBenefit(courseSlug:string){
-  const{data,error}=await supabase.rpc('claim_advanced_program_benefit',{p_course_slug:courseSlug});
+  const{data,error}=await apiCall<AdvancedProgramClaim>(`/v1/courses/${encodeURIComponent(courseSlug)}/advanced-claim`,{method:'POST'});
   return{claim:(data??null) as AdvancedProgramClaim|null,error};
 }
 
 export async function loadAdminAdvancedOffer(contentId:string){
-  const{data,error}=await supabase.from('advanced_program_offers').select('benefit_code,max_claims,active').eq('content_id',contentId).maybeSingle();
+  const{data,error}=await apiCall<{benefit_code:string|null;max_claims:number|null;active:boolean}|null>(`/v1/admin/content/${contentId}/advanced-offer`);
   return{offer:data?{benefitCode:data.benefit_code??'',maxClaims:data.max_claims?String(data.max_claims):'',active:data.active!==false}:null,error};
 }
 
 export async function saveAdminAdvancedOffer(contentId:string,offer:SecureAdvancedOffer){
-  const{data:auth}=await getUser();
-  return supabase.from('advanced_program_offers').upsert({content_id:contentId,benefit_code:offer.benefitCode.trim()||null,max_claims:offer.maxClaims?Number(offer.maxClaims):null,active:offer.active,updated_by:auth.user?.id??null},{onConflict:'content_id'});
+  return apiCall(`/v1/admin/content/${contentId}/advanced-offer`,{method:'PUT',body:JSON.stringify({benefit_code:offer.benefitCode.trim()||null,max_claims:offer.maxClaims?Number(offer.maxClaims):null,active:offer.active})});
 }

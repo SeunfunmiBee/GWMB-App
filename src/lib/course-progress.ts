@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type CourseProgress={
   user_id:string;
@@ -22,17 +22,21 @@ export function coursePercent(progress:CourseProgress|null,totalLessons:number){
 
 export async function loadCourseProgress(userId:string,courseId:string){
   const local=readLocal(userId,courseId);
-  const{data,error}=await supabase.from('course_progress').select('*').eq('user_id',userId).eq('course_id',courseId).maybeSingle();
+  const{data,error}=await apiCall<CourseProgress|null>(`/v1/courses/progress/${encodeURIComponent(courseId)}`);
   if(error||!data)return{progress:local,cloud:false};
   const progress=data as CourseProgress;writeLocal(progress);return{progress,cloud:true};
 }
 
 export async function loadAllCourseProgress(userId:string){
-  const{data,error}=await supabase.from('course_progress').select('*').eq('user_id',userId).order('updated_at',{ascending:false});
+  const{data,error}=await apiCall<CourseProgress[]>('/v1/courses/progress');
   if(error)return{progress:[] as CourseProgress[],cloud:false};
   const progress=(data??[]) as CourseProgress[];
   progress.forEach(writeLocal);
   return{progress,cloud:true};
+}
+
+async function saveProgress(progress:CourseProgress){
+  return apiCall<CourseProgress>(`/v1/courses/progress/${encodeURIComponent(progress.course_id)}`,{method:'PUT',body:JSON.stringify({completed_lesson_ids:progress.completed_lesson_ids,current_lesson_id:progress.current_lesson_id,started_at:progress.started_at,completed_at:progress.completed_at})});
 }
 
 export async function startCourse(userId:string,courseId:string,firstLessonId:string){
@@ -40,7 +44,7 @@ export async function startCourse(userId:string,courseId:string,firstLessonId:st
   if(existing)return existing;
   const now=new Date().toISOString();
   const progress:CourseProgress={user_id:userId,course_id:courseId,completed_lesson_ids:[],current_lesson_id:firstLessonId,started_at:now,completed_at:null,updated_at:now};
-  const{data,error}=await supabase.from('course_progress').upsert(progress,{onConflict:'user_id,course_id'}).select('*').single();
+  const{data,error}=await saveProgress(progress);
   const saved=!error&&data?data as CourseProgress:progress;writeLocal(saved);return saved;
 }
 
@@ -50,6 +54,6 @@ export async function completeCourseLesson(input:{userId:string;courseId:string;
   const completed=Array.from(new Set([...(loaded?.completed_lesson_ids??[]),input.lessonId]));
   const nextId=input.lessonIds.find(id=>!completed.includes(id))??null;
   const progress:CourseProgress={user_id:input.userId,course_id:input.courseId,completed_lesson_ids:completed,current_lesson_id:nextId,started_at:loaded?.started_at??now,completed_at:completed.length===input.lessonIds.length?now:null,updated_at:now};
-  const{data,error}=await supabase.from('course_progress').upsert(progress,{onConflict:'user_id,course_id'}).select('*').single();
+  const{data,error}=await saveProgress(progress);
   const saved=!error&&data?data as CourseProgress:progress;writeLocal(saved);return{progress:saved,cloud:!error};
 }
