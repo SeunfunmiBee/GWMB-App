@@ -7,7 +7,7 @@ import type { GwmbEvent } from '@/data/events';
 import type { CliqueSession } from '@/data/cliques';
 import type { MentorshipSession } from '@/data/mentorship';
 import type { ApplicationReminder } from '@/lib/application-profile-store';
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type UserNotification = { id:string; user_id:string; kind:string; title:string; body:string; route:string|null; read_at:string|null; created_at:string };
 export type NotificationPreferences = {
@@ -44,23 +44,20 @@ export const defaultNotificationPreferences = (userId:string):NotificationPrefer
   reminder_live:true,
 });
 
-export async function loadUserNotifications(userId:string){const{data,error}=await supabase.from('user_notifications').select('*').eq('user_id',userId).order('created_at',{ascending:false}).limit(50);return{notifications:(data??[]) as UserNotification[],error}}
-export async function loadUnreadNotificationCount(userId:string){const{count,error}=await supabase.from('user_notifications').select('id',{count:'exact',head:true}).eq('user_id',userId).is('read_at',null);return{count:count??0,error}}
-export async function markNotificationRead(userId:string,notificationId:string){return supabase.from('user_notifications').update({read_at:new Date().toISOString()}).eq('user_id',userId).eq('id',notificationId)}
-export async function markAllNotificationsRead(userId:string){return supabase.from('user_notifications').update({read_at:new Date().toISOString()}).eq('user_id',userId).is('read_at',null)}
+export async function loadUserNotifications(_userId:string){const{data,error}=await apiCall<UserNotification[]>('/v1/notifications');return{notifications:data??[],error}}
+export async function loadUnreadNotificationCount(_userId:string){const{data,error}=await apiCall<{count:number}>('/v1/notifications/unread-count');return{count:data?.count??0,error}}
+export async function markNotificationRead(_userId:string,notificationId:string){return apiCall(`/v1/notifications/${notificationId}/read`,{method:'POST'})}
+export async function markAllNotificationsRead(_userId:string){return apiCall('/v1/notifications/read-all',{method:'POST'})}
 
 export async function loadNotificationPreferences(userId:string){
   const fallback=defaultNotificationPreferences(userId);
-  const{data,error}=await supabase.from('notification_preferences').select('*').eq('user_id',userId).maybeSingle();
-  if(error)return{preferences:fallback,error};
-  if(data)return{preferences:data as NotificationPreferences,error:null};
-  const inserted=await supabase.from('notification_preferences').insert(fallback).select('*').single();
-  return{preferences:(inserted.data as NotificationPreferences|null)??fallback,error:inserted.error};
+  // The API creates the defaults on first read.
+  const{data,error}=await apiCall<NotificationPreferences>('/v1/notifications/preferences');
+  return{preferences:data??fallback,error};
 }
 
 export async function updateNotificationPreferences(userId:string,patch:Partial<NotificationPreferences>){
-  const payload={...patch,user_id:userId};
-  const{data,error}=await supabase.from('notification_preferences').upsert(payload,{onConflict:'user_id'}).select('*').single();
+  const{data,error}=await apiCall<NotificationPreferences>('/v1/notifications/preferences',{method:'PATCH',body:JSON.stringify(patch)});
   return{preferences:(data as NotificationPreferences|null)??{...defaultNotificationPreferences(userId),...patch},error};
 }
 
@@ -74,13 +71,13 @@ export async function registerPushDevice(userId:string,requestPermission=true){
   const projectId=Constants.expoConfig?.extra?.eas?.projectId??Constants.easConfig?.projectId;
   if(!projectId)return{enabled:false,reason:'The notification project ID is unavailable.'};
   const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;
-  const{error}=await supabase.rpc('register_push_device',{p_token:token,p_device_name:Device.deviceName??Device.modelName??'Android device',p_platform:Platform.OS});
+  const{error}=await apiCall('/v1/notifications/push-devices',{method:'POST',body:JSON.stringify({token,device_name:Device.deviceName??Device.modelName??'Android device',platform:Platform.OS})});
   if(error)return{enabled:false,reason:error.message};
   await updateNotificationPreferences(userId,{push_enabled:true});
   return{enabled:true,token};
 }
 
-export async function disablePushForUser(userId:string){await Promise.all([supabase.rpc('deactivate_my_push_devices'),updateNotificationPreferences(userId,{push_enabled:false})])}
+export async function disablePushForUser(userId:string){await Promise.all([apiCall('/v1/me/push-devices/deactivate',{method:'POST'}),updateNotificationPreferences(userId,{push_enabled:false})])}
 
 export async function scheduleLocalEventReminders(event:GwmbEvent,preferences:NotificationPreferences){
   if(Platform.OS==='web'||!event.startsAt)return[];

@@ -13,6 +13,7 @@ import { events } from './routes/events';
 import { learning } from './routes/learning';
 import { membership } from './routes/membership';
 import { adminMentorship, mentorship } from './routes/mentorship';
+import { adminNotifications, notifications } from './routes/notifications';
 import { me } from './routes/me';
 import { handleStorage } from './storage';
 
@@ -47,12 +48,14 @@ app.route('/v1/marketplace', marketplace);
 app.route('/v1/mentorship', mentorship);
 app.route('/v1/community', community);
 app.route('/v1/chapters', chapters);
+app.route('/v1/notifications', notifications);
 app.route('/v1/admin/content', adminContent);
 app.route('/v1/admin/opportunities', adminOpportunities);
 app.route('/v1/admin/cvs', adminCvs);
 app.route('/v1/admin/career', adminCareer);
 app.route('/v1/admin/mentorship', adminMentorship);
 app.route('/v1/admin/chapter-admins', adminChapters);
+app.route('/v1/admin/notifications', adminNotifications);
 app.route('/v1/admin/calendar', adminCalendar);
 
 export default app;

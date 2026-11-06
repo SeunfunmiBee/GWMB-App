@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AdminDateTimeField } from '@/components/admin/AdminDateTimeField';
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 import { colors, fonts } from '@/theme';
 
 const audiences = [
@@ -41,20 +41,23 @@ export function NotificationComposer({ onQueued }: { onQueued?: () => void }) {
       return;
     }
     setSaving(true);
-    const { data, error } = await supabase.rpc('queue_admin_notification', {
-      p_title: title.trim(),
-      p_body: body.trim(),
-      p_route: route.trim() || null,
-      p_audience: audience,
-      p_channels: channels,
-      p_scheduled_for: scheduledFor || new Date().toISOString(),
+    const { data, error } = await apiCall<{ queued: number }>('/v1/admin/notifications/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: title.trim(),
+        body: body.trim(),
+        route: route.trim() || null,
+        audience,
+        channels,
+        scheduled_for: scheduledFor || new Date().toISOString(),
+      }),
     });
     setSaving(false);
     if (error) {
       Alert.alert('Could not schedule notification', error.message);
       return;
     }
-    const queued = typeof data === 'number' ? data : 0;
+    const queued = data?.queued ?? 0;
     Alert.alert('Notification scheduled', `${queued} delivery${queued === 1 ? '' : 'ies'} added to the queue.`);
     setTitle('');
     setBody('');

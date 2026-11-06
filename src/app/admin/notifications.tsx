@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { NotificationComposer } from '@/components/admin/NotificationComposer';
+import { apiCall } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { colors, fonts } from '@/theme';
 
@@ -17,7 +18,7 @@ export default function AdminNotifications(){
   const[loading,setLoading]=useState(true);
   const[dispatching,setDispatching]=useState(false);
   const[tasks,setTasks]=useState<OperationsTask[]>([]);
-  async function refresh(showLoading=false){if(showLoading)setLoading(true);const statuses=(Object.keys(empty) as (keyof Counts)[]);const[userResults,mentorResults,taskResult]=await Promise.all([Promise.all(statuses.map(status=>supabase.from('notification_outbox').select('id',{count:'exact',head:true}).eq('status',status))),Promise.all(statuses.map(status=>supabase.from('mentor_communication_outbox').select('id',{count:'exact',head:true}).eq('status',status))),supabase.from('mentorship_operations_tasks').select('id,title,detail,priority,due_at').eq('status','open').order('due_at').limit(8)]);setCounts(statuses.reduce<Counts>((next,status,index)=>({...next,[status]:(userResults[index].count??0)+(mentorResults[index].count??0)}),empty));setTasks((taskResult.data??[]) as OperationsTask[]);setLoading(false)}
+  async function refresh(showLoading=false){if(showLoading)setLoading(true);const statuses=(Object.keys(empty) as (keyof Counts)[]);const{data}=await apiCall<{counts:Partial<Counts>;tasks:OperationsTask[]}>('/v1/admin/notifications/overview');setCounts(statuses.reduce<Counts>((next,status)=>({...next,[status]:data?.counts[status]??0}),empty));setTasks(data?.tasks??[]);setLoading(false)}
   // Resolve the protected outboxes and mentorship action queue after mount.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{void refresh()},[]);
