@@ -1,6 +1,4 @@
 import {
-  demoMentors,
-  demoMentorshipSessions,
   type Mentor,
   type MentorStatus,
   type MentorshipSession,
@@ -142,8 +140,9 @@ export async function loadMentors() {
     .eq("publish_public_profile", true)
     .order("full_name");
   return {
-    mentors: error || !data?.length ? demoMentors : (data as Mentor[]),
+    mentors: (data ?? []) as Mentor[],
     cloud: !error,
+    error,
   };
 }
 
@@ -157,11 +156,9 @@ export async function loadMentor(id: string) {
     .eq("publish_public_profile", true)
     .maybeSingle();
   return {
-    mentor:
-      error || !data
-        ? (demoMentors.find((item) => item.id === id) ?? demoMentors[0])
-        : (data as Mentor),
+    mentor: (data as Mentor | null) ?? null,
     cloud: !error,
+    error,
   };
 }
 
@@ -173,24 +170,22 @@ export async function loadMentorshipSessions() {
     )
     .in("status", ["published", "upcoming", "live", "completed"])
     .order("starts_at");
-  if (error || !data?.length)
-    return { sessions: demoMentorshipSessions, cloud: false };
+  if (error) return { sessions: [] as MentorshipSession[], cloud: false, error };
   const sessions = data.map((row: Record<string, unknown>) => ({
     ...row,
     mentors: (
       (row.mentorship_session_mentors as { mentor: Mentor }[] | undefined) ?? []
     ).map((item) => item.mentor),
   })) as MentorshipSession[];
-  return { sessions, cloud: true };
+  return { sessions, cloud: true, error: null };
 }
 
 export async function loadMentorshipSession(id: string) {
   const result = await loadMentorshipSessions();
   return {
-    session:
-      result.sessions.find((item) => item.id === id) ??
-      demoMentorshipSessions[0],
+    session: result.sessions.find((item) => item.id === id) ?? null,
     cloud: result.cloud,
+    error: result.error,
   };
 }
 

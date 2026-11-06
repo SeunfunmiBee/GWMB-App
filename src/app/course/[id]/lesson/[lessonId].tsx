@@ -25,7 +25,7 @@ export default function LessonScreen(){
   useEffect(()=>{let active=true;if(!previewId)return()=>{active=false};void loadContentItem(previewId).then(result=>{if(active)setPreviewRecord({id:previewId,item:result.error?null:result.data})});return()=>{active=false};},[previewId]);
   const previewItem=previewId&&previewRecord?.id===previewId?previewRecord.item:null;
   const previewLoading=Boolean(previewId&&previewRecord?.id!==previewId);
-  const course=useMemo(()=>previewId&&previewItem?courseFromContent(previewItem,courseState.catalog[id]):courseState.catalog[id]??null,[courseState.catalog,id,previewId,previewItem]);
+  const course=useMemo(()=>previewId&&previewItem?courseFromContent(previewItem):courseState.catalog[id]??null,[courseState.catalog,id,previewId,previewItem]);
   const foundIndex=course?.lessons.findIndex(item=>item.id===lessonId)??-1;
   const index=foundIndex>=0?foundIndex:0;
   const lesson=foundIndex>=0?course?.lessons[foundIndex]??null:null;

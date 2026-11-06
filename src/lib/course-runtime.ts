@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { courses as staticCourses, type AdvancedProgram, type Course, type Lesson } from '@/data/courses';
+import { type AdvancedProgram, type Course, type Lesson } from '@/data/courses';
 import type { ContentItem } from '@/lib/admin-content';
 import { usePublishedContentState } from '@/lib/content-runtime';
 
@@ -40,7 +40,7 @@ function courseLesson(value:unknown,index:number):Lesson{
   };
 }
 
-function parseResources(value:unknown,fallback:string[]){
+function parseResources(value:unknown){
   const titles:string[]=[];const links:Record<string,string>={};
   const items=Array.isArray(value)?value:[];
   items.forEach((item,index)=>{
@@ -51,37 +51,37 @@ function parseResources(value:unknown,fallback:string[]){
       const record=item as Record<string,unknown>;const title=stringValue(record.title,`Resource ${index+1}`);titles.push(title);const url=stringValue(record.url);if(url)links[title]=url;
     }
   });
-  return {titles:titles.length?titles:fallback,links};
+  return {titles,links};
 }
 
-export function courseFromContent(item:ContentItem,fallback?:Course):Course{
+export function courseFromContent(item:ContentItem):Course{
   const metadata=item.metadata??{};
-  const lessons=Array.isArray(metadata.lessons)?metadata.lessons.map(courseLesson):fallback?.lessons??[];
+  const lessons=Array.isArray(metadata.lessons)?metadata.lessons.map(courseLesson):[];
   const certificate=metadata.certificate===true;
   const level=stringValue(metadata.level,'Beginner');
-  const resources=parseResources(metadata.resources,fallback?.resources??[]);
+  const resources=parseResources(metadata.resources);
   const instructor=(metadata.instructor&&typeof metadata.instructor==='object'?metadata.instructor:{}) as Record<string,unknown>;
-  const provider=stringValue(metadata.provider,fallback?.source??'GWMB');
+  const provider=stringValue(metadata.provider,'GWMB');
   const advanced=(metadata.advanced_program&&typeof metadata.advanced_program==='object'?metadata.advanced_program:{}) as Record<string,unknown>;
   const advancedStatus=(['open','closing-soon','closed','coming-soon'].includes(stringValue(advanced.status))?stringValue(advanced.status):'coming-soon') as AdvancedProgram['status'];
   const offerType=(['none','discount','partial-scholarship','full-scholarship','fee-waiver'].includes(stringValue(advanced.offer_type))?stringValue(advanced.offer_type):'none') as AdvancedProgram['offerType'];
-  const advancedProgram=advanced.enabled===true?{enabled:true,title:stringValue(advanced.title,`Go further with ${item.title}`),partner:stringValue(advanced.partner,'Tech School Africa'),summary:stringValue(advanced.summary,'Continue into a professional programme delivered by our learning partner.'),duration:stringValue(advanced.duration)||undefined,format:stringValue(advanced.format)||undefined,certificate:stringValue(advanced.certificate)||undefined,programmeUrl:stringValue(advanced.programme_url),applicationUrl:stringValue(advanced.application_url),deadline:stringValue(advanced.deadline)||undefined,intake:stringValue(advanced.intake)||undefined,standardPrice:stringValue(advanced.standard_price)||undefined,status:advancedStatus,offerType,offerLabel:stringValue(advanced.offer_label)||undefined,membersOnlyOffer:advanced.members_only_offer!==false,completionRequired:advanced.completion_required===true} satisfies AdvancedProgram:fallback?.advancedProgram;
+  const advancedProgram=advanced.enabled===true?{enabled:true,title:stringValue(advanced.title,`Go further with ${item.title}`),partner:stringValue(advanced.partner,'Tech School Africa'),summary:stringValue(advanced.summary,'Continue into a professional programme delivered by our learning partner.'),duration:stringValue(advanced.duration)||undefined,format:stringValue(advanced.format)||undefined,certificate:stringValue(advanced.certificate)||undefined,programmeUrl:stringValue(advanced.programme_url),applicationUrl:stringValue(advanced.application_url),deadline:stringValue(advanced.deadline)||undefined,intake:stringValue(advanced.intake)||undefined,standardPrice:stringValue(advanced.standard_price)||undefined,status:advancedStatus,offerType,offerLabel:stringValue(advanced.offer_label)||undefined,membersOnlyOffer:advanced.members_only_offer!==false,completionRequired:advanced.completion_required===true} satisfies AdvancedProgram:undefined;
   return {
-    id:item.slug,eyebrow:item.eyebrow||fallback?.eyebrow||'GWMB LEARNING',title:item.title,
-    promise:item.summary||fallback?.promise||'Build a practical skill for your next move.',duration:stringValue(metadata.duration,fallback?.duration||'Self-paced'),
-    rating:stringValue(metadata.rating,fallback?.rating||'New'),tone:stringValue(metadata.color,fallback?.tone||'#6B3AA5'),
-    access:item.access_level==='members'?'MEMBERS ONLY':'OPEN ACCESS',overview:item.body||fallback?.overview||item.summary||'',
-    resources:resources.titles,lessons,category:validCategory(metadata.category??fallback?.category),subcategory:stringValue(metadata.subcategory,fallback?.subcategory||'Professional Learning'),
+    id:item.slug,eyebrow:item.eyebrow||'GWMB LEARNING',title:item.title,
+    promise:item.summary||'Build a practical skill for your next move.',duration:stringValue(metadata.duration,'Self-paced'),
+    rating:stringValue(metadata.rating,'New'),tone:stringValue(metadata.color,'#6B3AA5'),
+    access:item.access_level==='members'?'MEMBERS ONLY':'OPEN ACCESS',overview:item.body||item.summary||'',
+    resources:resources.titles,lessons,category:validCategory(metadata.category),subcategory:stringValue(metadata.subcategory,'Professional Learning'),
     source:(['GWMB','Tech School Africa','Learning Partner'].includes(provider)?provider:'Learning Partner') as Course['source'],
     benefits:Array.from(new Set([level,certificate?'Certificate':'',item.access_level==='members'?'Members Only':'Free'].filter(Boolean))),
-    certificate,instructor:stringValue(instructor.name)?{name:stringValue(instructor.name),role:stringValue(instructor.role),bio:stringValue(instructor.bio),imageUrl:stringValue(instructor.image_url)}:fallback?.instructor,
-    imageUrl:item.image_url||fallback?.imageUrl,resourceLinks:{...(fallback?.resourceLinks??{}),...resources.links},advancedProgram,
+    certificate,instructor:stringValue(instructor.name)?{name:stringValue(instructor.name),role:stringValue(instructor.role),bio:stringValue(instructor.bio),imageUrl:stringValue(instructor.image_url)}:undefined,
+    imageUrl:item.image_url||undefined,resourceLinks:resources.links,advancedProgram,
   };
 }
 
 export function buildCourseCatalog(items:ContentItem[]){
   const catalog:Record<string,Course>={};
-  items.forEach(item=>{catalog[item.slug]=courseFromContent(item,staticCourses[item.slug]);});
+  items.forEach(item=>{catalog[item.slug]=courseFromContent(item);});
   return catalog;
 }
 

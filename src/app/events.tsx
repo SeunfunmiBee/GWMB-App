@@ -6,7 +6,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'rea
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { AppStateView } from '@/components/states/AppStateView';
-import { eventById, type GwmbEvent } from '@/data/events';
+import type { GwmbEvent } from '@/data/events';
 import { loadEventRegistrations, type EventRegistration } from '@/lib/event-store';
 import { cmsEvent, usePublishedContentState } from '@/lib/content-runtime';
 import { useAuth } from '@/providers/AuthProvider';
@@ -34,7 +34,7 @@ export default function EventsScreen() {
 
   const activeRegistrations = registrations.filter((item) => item.status !== 'cancelled');
   const registrationByEvent = Object.fromEntries(activeRegistrations.map((item) => [item.event_id, item]));
-  const liveEvents=useMemo(()=>content.items.map(item=>cmsEvent(item,eventById[item.slug])),[content.items]);
+  const liveEvents=useMemo(()=>content.items.map(item=>cmsEvent(item)),[content.items]);
   const liveById=useMemo(()=>Object.fromEntries(liveEvents.map(item=>[item.id,item])) as Record<string,GwmbEvent>,[liveEvents]);
   const myEvents = activeRegistrations.map((item) => liveById[item.event_id]).filter(Boolean);
   const visible = tab === 'upcoming' ? liveEvents.filter(event=>event.lifecycle==='upcoming') : tab === 'past' ? liveEvents.filter(event=>event.lifecycle==='past') : myEvents;

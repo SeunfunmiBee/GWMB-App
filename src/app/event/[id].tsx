@@ -12,7 +12,6 @@ import {
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { AppStateView } from '@/components/states/AppStateView';
-import { eventById } from '@/data/events';
 import {
  cancelEventRegistration, loadEventRegistration, loadRegisteredEventMeeting, type EventMeetingAccess, type EventRegistration
 } from '@/lib/event-store';
@@ -30,7 +29,7 @@ export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const content=usePublishedContentState('events');
   const cmsItem=useMemo(()=>content.items.find(candidate=>candidate.slug===id),[content.items,id]);
-  const event = useMemo(()=>cmsItem?cmsEvent(cmsItem,eventById[id]):null,[cmsItem,id]);
+  const event = useMemo(()=>cmsItem?cmsEvent(cmsItem):null,[cmsItem]);
   const registrationId=cmsItem?.id??'';
   const {
  user, membership

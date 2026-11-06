@@ -14,7 +14,38 @@ export async function cancelAccountDeletion(){const{error}=await supabase.rpc('c
 export async function submitSupportRequest(input:{type:'support'|'problem'|'feedback';subject:string;message:string;route?:string}){const{data,error}=await supabase.rpc('submit_support_request',{p_type:input.type,p_subject:input.subject,p_message:input.message,p_route:input.route??null});if(error)throw error;return data as string}
 function errorClientId(){try{const key='gwmb-error-client-id';const existing=localStorage.getItem(key);if(existing)return existing;const created=`client-${Date.now()}-${Math.random().toString(36).slice(2)}`;localStorage.setItem(key,created);return created}catch{return'client-unavailable'}}
 function safeContext(value:Record<string,unknown>){const blocked=/password|token|secret|authorization|cookie|code|cv|document/i;return Object.fromEntries(Object.entries(value).filter(([key])=>!blocked.test(key)).map(([key,item])=>[key,typeof item==='string'?item.slice(0,1000):item]))}
-export async function logAppError(source:string,error:unknown,context:Record<string,unknown>={},severity:'warning'|'error'|'fatal'='error'){const message=error instanceof Error?`${error.name}: ${error.message}`:String(error);const stack=error instanceof Error?error.stack?.slice(0,4000):undefined;try{await supabase.rpc('log_app_error',{p_source:source,p_message:message,p_severity:severity,p_context:{...safeContext(context),...(stack?{stack}:{}),client_id:errorClientId(),platform:Platform.OS,app_version:Constants.expoConfig?.version??'unknown'}})}catch{/* Error reporting must never crash the app. */}}
+const networkFailurePattern=/failed to fetch|network request failed|networkerror|load failed|internet connection appears to be offline/i;
+const recentErrorReports=new Map<string,number>();
+let errorReportInFlight=false;
+let errorReportingBlockedUntil=0;
+
+export function isNetworkFailure(error:unknown){
+  let message='';
+  try{message=error instanceof Error?`${error.name}: ${error.message}`:typeof error==='string'?error:JSON.stringify(error)??''}catch{message=String(error)}
+  return networkFailurePattern.test(message);
+}
+
+export async function logAppError(source:string,error:unknown,context:Record<string,unknown>={},severity:'warning'|'error'|'fatal'='error'){
+  // A failed network request cannot report itself through that same failed network.
+  // Skipping it also prevents the global rejection listener from creating a retry storm.
+  if(isNetworkFailure(error)||(typeof navigator!=='undefined'&&navigator.onLine===false))return;
+  const message=error instanceof Error?`${error.name}: ${error.message}`:String(error);
+  const fingerprint=`${source}:${message}`;
+  const now=Date.now();
+  if(errorReportInFlight||now<errorReportingBlockedUntil||now-(recentErrorReports.get(fingerprint)??0)<30_000)return;
+  recentErrorReports.set(fingerprint,now);
+  const stack=error instanceof Error?error.stack?.slice(0,4000):undefined;
+  errorReportInFlight=true;
+  try{
+    const{error:reportError}=await supabase.rpc('log_app_error',{p_source:source,p_message:message,p_severity:severity,p_context:{...safeContext(context),...(stack?{stack}:{}),client_id:errorClientId(),platform:Platform.OS,app_version:Constants.expoConfig?.version??'unknown'}});
+    if(reportError&&isNetworkFailure(reportError))errorReportingBlockedUntil=Date.now()+30_000;
+  }catch{
+    // Error reporting is best-effort and must never become a second app failure.
+    errorReportingBlockedUntil=Date.now()+30_000;
+  }finally{
+    errorReportInFlight=false;
+  }
+}
 export async function loadLaunchOperations(){const[accounts,support,errors,audit,flags,beta]=await Promise.all([
   supabase.from('account_requests').select('*').order('requested_at',{ascending:false}).limit(50),
   supabase.from('support_requests').select('*').order('created_at',{ascending:false}).limit(50),

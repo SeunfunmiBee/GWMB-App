@@ -7,10 +7,13 @@ import { Screen } from '@/components/Screen';
 import { AnimatedProgress } from '@/components/motion/AnimatedProgress';
 import { FadeIn } from '@/components/motion/FadeIn';
 import { SpringPressable } from '@/components/motion/SpringPressable';
-import { courses } from '@/data/courses';
 import { growCategories, growCategoryColors, type GrowSlug } from '@/data/grow';
 import { coursePercent, loadCourseProgress, type CourseProgress } from '@/lib/course-progress';
+import { useCourseCatalog } from '@/lib/course-runtime';
 import { tapFeedback } from '@/lib/feedback';
+import { usePublishedContent } from '@/lib/content-runtime';
+import { loadMentors } from '@/lib/mentorship-store';
+import type { Mentor } from '@/data/mentorship';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 
@@ -25,26 +28,34 @@ export default function GrowScreen() {
   const continuePausedUntil = useRef(0);
   const { user } = useAuth();
   const userId = user?.id;
-  const cvCourse = courses['workplace-foundations'];
+  const courseCatalog=useCourseCatalog();
+  const cvCourse = courseCatalog['workplace-foundations']??null;
+  const publishedResources=usePublishedContent('resources');
+  const firstResource=publishedResources[0]??null;
+  const[firstMentor,setFirstMentor]=useState<Mentor|null>(null);
+
+  useEffect(()=>{let active=true;loadMentors().then(result=>{if(active)setFirstMentor(result.mentors[0]??null)});return()=>{active=false}},[]);
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    if (!userId) { setProgress(null); return () => { active = false; }; }
+    if (!userId||!cvCourse) { setProgress(null); return () => { active = false; }; }
     loadCourseProgress(userId, cvCourse.id).then((result) => { if (active) setProgress(result.progress); });
     return () => { active = false; };
-  }, [cvCourse.id, userId]));
+  }, [cvCourse, userId]));
 
   useEffect(() => {
     const timer = setInterval(() => {
       if (Date.now() < continuePausedUntil.current) return;
-      continuePosition.current = (continuePosition.current + 1) % 3;
+      const count=[cvCourse,firstResource,firstMentor].filter(Boolean).length;
+      if(count<2)return;
+      continuePosition.current = (continuePosition.current + 1) % count;
       continueScroller.current?.scrollTo({ x: continuePosition.current * 262, animated: continuePosition.current !== 0 });
     }, 4300);
     return () => clearInterval(timer);
-  }, []);
+  }, [cvCourse,firstMentor,firstResource]);
 
-  const percent = coursePercent(progress, cvCourse.lessons.length);
-  const currentIndex = Math.max(0, cvCourse.lessons.findIndex((item) => !progress?.completed_lesson_ids.includes(item.id)));
+  const percent = cvCourse?coursePercent(progress, cvCourse.lessons.length):0;
+  const currentIndex = Math.max(0, cvCourse?.lessons.findIndex((item) => !progress?.completed_lesson_ids.includes(item.id))??0);
   const focus = growCategories.find((item) => item.slug === focusSlug) ?? growCategories[0];
   const challengePercent = Math.round((challengeDone.filter(Boolean).length / challengeActions.length) * 100);
 
@@ -78,22 +89,22 @@ export default function GrowScreen() {
       </ScrollView>
     </FadeIn>
 
-    <FadeIn delay={125}>
+    {cvCourse||firstResource||firstMentor?<FadeIn delay={125}>
       <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Continue your growth</Text><Text style={styles.sectionHint}>Swipe</Text></View>
       <ScrollView ref={continueScroller} horizontal decelerationRate="fast" snapToInterval={262} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.continueTrack} onScrollBeginDrag={() => { continuePausedUntil.current = Date.now() + 8000; }} onMomentumScrollEnd={(event) => { continuePosition.current = Math.round(event.nativeEvent.contentOffset.x / 262); }}>
-        <SpringPressable onPress={() => { void tapFeedback(); router.push('/course/workplace-foundations'); }} style={[styles.continueCard, styles.continueDark]} contentStyle={styles.continueContent}>
+        {cvCourse?<SpringPressable onPress={() => { void tapFeedback(); router.push(`/course/${cvCourse.id}`); }} style={[styles.continueCard, styles.continueDark]} contentStyle={styles.continueContent}>
           <View style={styles.continueTop}><View style={styles.continueIcon}><Ionicons name="play-circle-outline" size={25} color={colors.pinkDeep}/></View><Text style={styles.continueCount}>{percent}%</Text></View>
           <Text style={styles.continueEyebrow}>{progress ? 'CONTINUE LEARNING' : 'START LEARNING'}</Text><Text style={styles.continueTitle}>CV that gets noticed</Text><Text style={styles.continueMeta}>{progress ? percent === 100 ? 'Complete · Certificate ready' : `Lesson ${currentIndex + 1} of ${cvCourse.lessons.length}` : '6 practical lessons'}</Text>
           <AnimatedProgress value={percent} height={4} color={colors.pink} trackColor="#3B3739" style={styles.continueProgress}/>
-        </SpringPressable>
-        <SpringPressable onPress={() => { void tapFeedback(); router.push('/resource/weekly-planning'); }} style={[styles.continueCard, styles.continuePurple]} contentStyle={styles.continueContent}>
-          <View style={styles.continueTop}><View style={styles.continueIcon}><Ionicons name="document-text-outline" size={24} color="#6841D8"/></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></View><Text style={styles.purpleEyebrow}>CONTINUE READING</Text><Text style={styles.continueTitleDark}>The Weekly Planning Template</Text><Text style={styles.continueMetaDark}>PDF · 5 pages</Text>
-        </SpringPressable>
-        <SpringPressable onPress={() => { void tapFeedback(); router.push('/mentor/tosin-adeniran'); }} style={[styles.continueCard, styles.continuePink]} contentStyle={styles.continueContent}>
-          <View style={styles.continueTop}><View style={styles.continueIcon}><Ionicons name="people-outline" size={24} color={colors.pinkDeep}/></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></View><Text style={styles.pinkEyebrow}>MEET A MENTOR</Text><Text style={styles.continueTitleDark}>Build visibility with intention</Text><Text style={styles.continueMetaDark}>Guidance from Tosin Adeniran</Text>
-        </SpringPressable>
+        </SpringPressable>:null}
+        {firstResource?<SpringPressable onPress={() => { void tapFeedback(); router.push(`/resource/${firstResource.slug}`); }} style={[styles.continueCard, styles.continuePurple]} contentStyle={styles.continueContent}>
+          <View style={styles.continueTop}><View style={styles.continueIcon}><Ionicons name="document-text-outline" size={24} color="#6841D8"/></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></View><Text style={styles.purpleEyebrow}>{firstResource.eyebrow||'RESOURCE'}</Text><Text style={styles.continueTitleDark}>{firstResource.title}</Text><Text style={styles.continueMetaDark}>{String(firstResource.metadata.length??firstResource.metadata.resource_type??'Open resource')}</Text>
+        </SpringPressable>:null}
+        {firstMentor?<SpringPressable onPress={() => { void tapFeedback(); router.push(`/mentor/${firstMentor.id}`); }} style={[styles.continueCard, styles.continuePink]} contentStyle={styles.continueContent}>
+          <View style={styles.continueTop}><View style={styles.continueIcon}><Ionicons name="people-outline" size={24} color={colors.pinkDeep}/></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></View><Text style={styles.pinkEyebrow}>MEET A MENTOR</Text><Text style={styles.continueTitleDark}>{firstMentor.full_name}</Text><Text style={styles.continueMetaDark}>{firstMentor.job_title} · {firstMentor.organisation}</Text>
+        </SpringPressable>:null}
       </ScrollView>
-    </FadeIn>
+    </FadeIn>:null}
 
     <FadeIn delay={180}>
       <View style={styles.challengeCard}>

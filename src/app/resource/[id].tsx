@@ -15,51 +15,6 @@ import { usePublishedContentState } from '@/lib/content-runtime';
 import { resolveContentFileUrl } from '@/lib/admin-content';
 import { useAuth } from '@/providers/AuthProvider';
 
-const resources:Record<string,{type:string;title:string;copy:string;meta:string;points:string[]}>= {
-  'weekly-planning':{
-type:'Practical Resource',
-title:'The Weekly Planning Template',
-copy:'A simple reusable template for turning priorities into a realistic week you can actually follow.',
-meta:'PDF · 5 pages',
-points:['Choose three weekly priorities','Plan realistic focus blocks','Protect rest and recovery','Review and reset each week']
-},
-  'better-goals':{
-type:'Personal Growth Guide',
-title:'A Better Way to Set Goals',
-copy:'Make your next goal specific, workable and connected to an action you can take now.',
-meta:'8 min read',
-points:['Define a meaningful outcome','Choose the smallest next action','Set a realistic check-in rhythm','Review progress without judgement']
-},
-  'conflict-guide':{
-type:'Leadership Guide',
-title:'Communicating Through Conflict',
-copy:'A practical guide to direct, respectful conversations when expectations or perspectives differ.',
-meta:'Guide · 12 min',
-points:['Prepare for the conversation','Separate facts from assumptions','Communicate clearly and calmly','Agree on a useful next step']
-},
-  'monthly-budget-workbook':{
-type:'Smart Money Workbook',
-title:'Your Monthly Money Workbook',
-copy:'A practical, shame-free workbook for planning your money around the life you are actually living.',
-meta:'Editable · 12 pages',
-points:['Map your income and essential costs','Plan flexible spending without guilt','Choose one realistic savings goal','Review and reset each month']
-},
-  'first-job-playbook':{
-type:'Career Book',
-title:'The First Job Playbook',
-copy:'A concise guide to preparing, positioning yourself and navigating your first professional opportunity with confidence.',
-meta:'Digital book · 28 pages',
-points:['Understand what employers look for','Translate school and project experience','Prepare for applications and interviews','Build strong early-career habits']
-},
-  'presentation-practice':{
-type:'Communication Workbook',
-title:'Presentation Practice Planner',
-copy:'A guided workbook for structuring your message, rehearsing intentionally and speaking with greater clarity.',
-meta:'PDF · 8 pages',
-points:['Define your audience and outcome','Build a simple message structure','Plan your opening and close','Track practice and useful feedback']
-},
-};
-
 export default function ResourceDetail(){
   const{id}=useLocalSearchParams<{id:string}>();
   const{user,membership}=useAuth();
@@ -67,14 +22,13 @@ export default function ResourceDetail(){
   const item=useMemo(()=>{
     const content=contentState.items.find(candidate=>candidate.slug===id);
     if(!content)return null;
-    const fallback=resources[id];
-    const rawMeta=content.metadata.length||content.metadata.format||fallback?.meta||'Resource';
+    const rawMeta=content.metadata.length||content.metadata.format||'Resource';
     return {
-      type:content.eyebrow||fallback?.type||'Practical Resource',
+      type:content.eyebrow||'Practical Resource',
       title:content.title,
-      copy:content.body||content.summary||fallback?.copy||'',
+      copy:content.body||content.summary||'',
       meta:String(rawMeta),
-      points:Array.isArray(content.metadata.points)?content.metadata.points.filter((point):point is string=>typeof point==='string'):fallback?.points??[],
+      points:Array.isArray(content.metadata.points)?content.metadata.points.filter((point):point is string=>typeof point==='string'):[],
       url:typeof content.metadata.url==='string'?content.metadata.url:'',
       membersOnly:content.access_level==='members',
     };

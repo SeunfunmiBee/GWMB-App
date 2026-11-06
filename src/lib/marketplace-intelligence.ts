@@ -1,9 +1,6 @@
-import { courses } from '@/data/courses';
-import { eventById } from '@/data/events';
 import type { CourseProgress } from '@/lib/course-progress';
 import type { EventRegistration } from '@/lib/event-store';
 import {
-  fallbackMarketplaceInventory,
   findBestOpportunity,
   findInventoryItem,
   isInventoryItemAvailable,
@@ -140,7 +137,7 @@ export function emptyReadinessProfile(userId: string): MarketplaceReadinessProfi
 }
 
 function mergeVerifiedEvidence(profile: MarketplaceReadinessProfile, input: Pick<EngineInput, 'courseProgress' | 'applications'>) {
-  const completedCvCourse = Boolean(input.courseProgress?.completed_at) || (input.courseProgress?.completed_lesson_ids.length ?? 0) >= courses['workplace-foundations'].lessons.length;
+  const completedCvCourse = Boolean(input.courseProgress?.completed_at);
   return {
     ...profile,
     has_cv: completedCvCourse ? true : profile.has_cv,
@@ -204,7 +201,7 @@ function isEmploymentGoal(goal: MarketplaceJourney['primary_goal']) {
 
 function recommendationCatalog(input: Pick<EngineInput, 'journey' | 'inventory' | 'isMember' | 'now'>): Record<string, IntelligenceRecommendation> {
   const { journey } = input;
-  const inventory = input.inventory?.length ? input.inventory : fallbackMarketplaceInventory;
+  const inventory = input.inventory ?? [];
   const now = input.now ?? new Date();
   const firstInterest = journey.interests[0] ?? 'your chosen field';
   const interestSet = new Set(journey.interests.map((interest) => interest.toLowerCase()));
@@ -227,9 +224,9 @@ function recommendationCatalog(input: Pick<EngineInput, 'journey' | 'inventory' 
     'cv-review': { key: 'cv-review', eyebrow: 'REFINE YOUR POSITIONING', title: 'Review and improve your CV', shortExplanation: 'Upload your CV and get a focused review for the role you are targeting.', whyThisNow: 'You already have a CV. Feedback is more useful now than starting it again.', actionType: 'career_tool', linkedItemId: 'cv-tool', cta: 'Review my CV', route: '/cv/review', accessLevel: 'Open Access', icon: 'document-text-outline', tone: '#111011', addresses: 'cv_reviewed' },
     'apply-opportunity': { key: 'apply-opportunity', eyebrow: 'A MATCH FOR YOUR NEXT STEP', title: matchedOpportunity?.title ?? 'Explore opportunities that match your direction', shortExplanation: matchedOpportunity?.summary ?? 'Your preparation is taking shape. Find an eligible opportunity and put it into practice.', whyThisNow: 'More preparation should not delay a suitable application when you are reasonably ready.', actionType: 'opportunity', linkedItemId: matchedOpportunity?.source_id ?? null, cta: matchedOpportunity?.action_label ?? 'Explore opportunities', route: matchedOpportunity?.route ?? '/opportunities', accessLevel: matchedOpportunity?.access_level ?? 'Open Access', icon: 'briefcase-outline', tone: matchedOpportunity?.tone ?? '#078765', addresses: 'opportunity_readiness' },
     'interview-prep': { key: 'interview-prep', eyebrow: 'PREPARE FOR THE CONVERSATION', title: 'Practise telling your story with confidence', shortExplanation: 'Prepare examples that show how your skills, choices and experience connect to the role.', whyThisNow: 'You have started applying, so interview preparation is now more useful than another general course.', actionType: 'pathway', linkedItemId: 'career', cta: 'Prepare for interviews', route: '/grow/career', accessLevel: 'Open Access', icon: 'person-outline', tone: '#3150E8', addresses: 'interview_readiness' },
-    'business-money': { key: 'business-money', eyebrow: 'SMART MONEY GIRL', title: 'Build a clearer money rhythm for your business', shortExplanation: businessMoneyCourse?.summary ?? 'Strengthen how you plan, price, save and make financial decisions.', whyThisNow: 'A practical money foundation supports a business at every stage.', actionType: 'course', linkedItemId: businessMoneyCourse?.source_id ?? 'budgeting', cta: businessMoneyCourse?.action_label ?? 'Start learning', route: businessMoneyCourse?.route ?? '/course/budgeting', accessLevel: businessMoneyCourse?.access_level ?? 'Open Access', icon: 'cash-outline', tone: businessMoneyCourse?.tone ?? '#C48414', addresses: 'business_finance' },
+    'business-money': { key: 'business-money', eyebrow: 'SMART MONEY GIRL', title: businessMoneyCourse?.title ?? 'Build a clearer money rhythm for your business', shortExplanation: businessMoneyCourse?.summary ?? 'Explore practical guidance on planning, pricing, saving and making financial decisions.', whyThisNow: 'A practical money foundation supports a business at every stage.', actionType: businessMoneyCourse?'course':'pathway', linkedItemId: businessMoneyCourse?.source_id ?? null, cta: businessMoneyCourse?.action_label ?? 'Explore Smart Money Girl', route: businessMoneyCourse?.route ?? '/grow/money', accessLevel: businessMoneyCourse?.access_level ?? 'Open Access', icon: 'cash-outline', tone: businessMoneyCourse?.tone ?? '#C48414', addresses: 'business_finance' },
     'business-live': { key: 'business-live', eyebrow: 'LIVE BUSINESS GUIDANCE', title: businessLiveEvent?.title ?? 'Explore practical business guidance', shortExplanation: businessLiveEvent?.summary ?? 'Find guidance on offers, pricing, sales and building more consistent business systems.', whyThisNow: 'Practical guidance can help you turn a broad business goal into a clearer next action.', actionType: businessLiveEvent ? 'event' : 'pathway', linkedItemId: businessLiveEvent?.source_id ?? null, cta: businessLiveEvent?.action_label ?? 'Explore Smart Money Girl', route: businessLiveEvent?.route ?? '/grow/money', accessLevel: businessLiveEvent?.access_level ?? 'Open Access', icon: businessLiveEvent ? 'calendar-outline' : 'cash-outline', tone: businessLiveEvent?.tone ?? '#C48414', addresses: 'business_growth' },
-    'self-leadership': { key: 'self-leadership', eyebrow: 'GROW IN YOUR CAREER', title: 'Strengthen how you lead yourself first', shortExplanation: leadershipCourse?.summary ?? 'Build ownership, self-awareness and dependable habits in five focused lessons.', whyThisNow: 'Stronger self-leadership supports your progress and performance in your current career.', actionType: 'course', linkedItemId: leadershipCourse?.source_id ?? 'self-leadership', cta: leadershipCourse?.action_label ?? 'Start course', route: leadershipCourse?.route ?? '/course/self-leadership', accessLevel: leadershipCourse?.access_level ?? 'Open Access', icon: 'play-circle-outline', tone: leadershipCourse?.tone ?? '#111011', addresses: 'workplace_readiness' },
+    'self-leadership': { key: 'self-leadership', eyebrow: 'GROW IN YOUR CAREER', title: leadershipCourse?.title ?? 'Strengthen how you lead yourself first', shortExplanation: leadershipCourse?.summary ?? 'Explore practical guidance on ownership, self-awareness and dependable professional habits.', whyThisNow: 'Stronger self-leadership supports your progress and performance in your current career.', actionType: leadershipCourse?'course':'pathway', linkedItemId: leadershipCourse?.source_id ?? null, cta: leadershipCourse?.action_label ?? 'Explore leadership', route: leadershipCourse?.route ?? '/grow/leadership', accessLevel: leadershipCourse?.access_level ?? 'Open Access', icon: 'play-circle-outline', tone: leadershipCourse?.tone ?? '#111011', addresses: 'workplace_readiness' },
     'registered-event': { key: 'registered-event', eyebrow: 'YOUR NEXT COMMITMENT', title: 'Get ready for your upcoming GWMB event', shortExplanation: 'Your place is saved. Review the details and arrive prepared to participate.', whyThisNow: 'The event is approaching and preparation will help you get more value from it.', actionType: 'event', linkedItemId: null, cta: 'View my event', route: '/events?tab=my', accessLevel: 'Open Access', icon: 'calendar-outline', tone: '#3150E8', addresses: 'time_sensitive' },
   };
 }
@@ -259,15 +256,14 @@ function contextualQuestion(journey: MarketplaceJourney, profile: MarketplaceRea
 
 function choosePrimary(input: EngineInput, profile: MarketplaceReadinessProfile, dismissed: Set<string>) {
   const catalog = recommendationCatalog(input);
-  const inventory = input.inventory?.length ? input.inventory : fallbackMarketplaceInventory;
+  const inventory = input.inventory ?? [];
   const now = input.now ?? new Date();
   const lessons = input.courseProgress?.completed_lesson_ids.length ?? 0;
-  const courseStarted = Boolean(input.courseProgress) && lessons < courses['workplace-foundations'].lessons.length && !input.courseProgress?.completed_at;
+  const progressCourse=input.courseProgress?findInventoryItem(inventory,'course',input.courseProgress.course_id,now):null;
+  const lessonCount=typeof progressCourse?.metadata.lesson_count==='number'?progressCourse.metadata.lesson_count:typeof progressCourse?.metadata.lessons==='number'?progressCourse.metadata.lessons:Array.isArray(progressCourse?.metadata.lessons)?progressCourse.metadata.lessons.length:0;
+  const courseStarted = Boolean(input.courseProgress&&progressCourse&&lessonCount>lessons&&!input.courseProgress.completed_at);
   const cvCourseRelevant = isEmploymentGoal(input.journey.primary_goal) || input.journey.primary_goal === 'first-internship' || input.journey.primary_goal === 'first-job';
-  const upcomingRegistration = input.registrations.find((registration) => {
-    const event = eventById[registration.event_id];
-    return registration.status !== 'cancelled' && event?.startsAt && new Date(event.startsAt) > now;
-  });
+  const upcomingRegistration = input.registrations.map(registration=>({registration,event:inventory.find(item=>item.content_type==='event'&&(item.id===`content-${registration.event_id}`||item.source_id===registration.event_id||item.route===registration.event_route))})).find(({registration,event}) => registration.status !== 'cancelled' && event?.starts_at && new Date(event.starts_at) > now);
   const hasBusinessLiveEvent = Boolean(findInventoryItem(inventory, 'event', 'side-hustle', now));
   const candidates: string[] = [];
 
@@ -289,12 +285,13 @@ function choosePrimary(input: EngineInput, profile: MarketplaceReadinessProfile,
   candidates.push('foundational-learning', 'career-discovery', 'self-leadership', 'apply-opportunity');
   const selectedKey = candidates.find((key) => !dismissed.has(key)) ?? candidates[0];
   const selected = { ...catalog[selectedKey] };
-  if (selected.key === 'continue-cv') selected.shortExplanation = `You have completed ${lessons} of ${courses['workplace-foundations'].lessons.length} lessons. Complete the next one while the work is still fresh.`;
-  if (selected.key === 'registered-event' && upcomingRegistration) {
-    selected.linkedItemId = upcomingRegistration.event_id;
-    selected.route = `/event/${upcomingRegistration.event_id}`;
-    selected.title = `Get ready for ${eventById[upcomingRegistration.event_id]?.title ?? 'your upcoming event'}`;
-    selected.accessLevel = eventById[upcomingRegistration.event_id]?.access ?? 'Open Access';
+  if (selected.key === 'continue-cv') selected.shortExplanation = `You have completed ${lessons} of ${lessonCount} lessons. Complete the next one while the work is still fresh.`;
+  const upcomingEvent=upcomingRegistration?.event;
+  if (selected.key === 'registered-event' && upcomingEvent) {
+    selected.linkedItemId = upcomingEvent.source_id;
+    selected.route = upcomingEvent.route;
+    selected.title = `Get ready for ${upcomingEvent.title}`;
+    selected.accessLevel = upcomingEvent.access_level;
   }
   return selected;
 }

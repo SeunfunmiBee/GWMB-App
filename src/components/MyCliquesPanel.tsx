@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { cliqueById } from '@/data/cliques';
+import { nextCliqueSession, publishedCliqueSessions } from '@/lib/clique-events';
 import { loadJoinedCliques } from '@/lib/clique-store';
+import { usePublishedContent } from '@/lib/content-runtime';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 
@@ -12,6 +14,8 @@ export function MyCliquesPanel({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { user, membership } = useAuth();
   const [ids, setIds] = useState<string[]>([]);
+  const eventContent = usePublishedContent('events');
+  const sessions = useMemo(() => publishedCliqueSessions(eventContent), [eventContent]);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -25,7 +29,7 @@ export function MyCliquesPanel({ compact = false }: { compact?: boolean }) {
 
   return <View style={[styles.wrapper, compact && styles.wrapperCompact]}>
     <View style={styles.heading}><View><Text style={styles.kicker}>MEMBER COMMUNITY</Text><Text style={styles.title}>My Cliques</Text></View><Pressable onPress={() => router.push('/cliques')}><Text style={styles.link}>{joined.length ? 'Manage' : 'Explore'}</Text></Pressable></View>
-    {joined.length ? <View style={styles.list}>{joined.map(clique => <Pressable key={clique.id} onPress={() => router.push('/cliques')} style={styles.row}><Image source={clique.image} style={styles.image}/><View style={styles.copy}><Text style={styles.cliqueTitle}>{clique.title}</Text><Text style={styles.meetingLabel}>NEXT CLIQUE MEETING</Text><Text style={styles.meeting} numberOfLines={1}>{clique.meeting.date}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.muted}/></Pressable>)}</View> : <Pressable onPress={() => router.push('/cliques')} style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="people-outline" size={22} color={colors.pinkDeep}/></View><View style={styles.copy}><Text style={styles.emptyTitle}>Find your people</Text><Text style={styles.emptyText}>Join a members-only clique around your career or interests.</Text></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></Pressable>}
+    {joined.length ? <View style={styles.list}>{joined.map(clique => { const session=nextCliqueSession(sessions,clique.id); return <Pressable key={clique.id} onPress={() => router.push('/cliques')} style={styles.row}><Image source={clique.image} style={styles.image}/><View style={styles.copy}><Text style={styles.cliqueTitle}>{clique.title}</Text><Text style={styles.meetingLabel}>{session?'NEXT CLIQUE MEETING':'CLIQUE UPDATES'}</Text><Text style={styles.meeting} numberOfLines={1}>{session?`${session.dateLabel} · ${session.location}`:'No upcoming session published'}</Text></View><Ionicons name="chevron-forward" size={18} color={colors.muted}/></Pressable>; })}</View> : <Pressable onPress={() => router.push('/cliques')} style={styles.empty}><View style={styles.emptyIcon}><Ionicons name="people-outline" size={22} color={colors.pinkDeep}/></View><View style={styles.copy}><Text style={styles.emptyTitle}>Find your people</Text><Text style={styles.emptyText}>Join a members-only clique around your career or interests.</Text></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></Pressable>}
   </View>;
 }
 

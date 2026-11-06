@@ -5,16 +5,18 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
-import { courses } from '@/data/courses';
+import { AppStateView } from '@/components/states/AppStateView';
 import { coursePercent, loadCourseProgress, type CourseProgress } from '@/lib/course-progress';
+import { useCourseCatalog } from '@/lib/course-runtime';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 
 const router={push:(href:string)=>expoRouter.push(href as never)};
 
 export default function Activity(){
-  const{user}=useAuth(); const userId=user?.id; const course=courses['workplace-foundations']; const[progress,setProgress]=useState<CourseProgress|null>(null);
-  useFocusEffect(useCallback(()=>{let active=true;if(!userId){setProgress(null);return()=>{active=false};}loadCourseProgress(userId,course.id).then(result=>{if(active)setProgress(result.progress)});return()=>{active=false};},[course.id,userId]));
+  const{user}=useAuth(); const userId=user?.id; const catalog=useCourseCatalog(); const course=catalog['workplace-foundations']??null; const[progress,setProgress]=useState<CourseProgress|null>(null);
+  useFocusEffect(useCallback(()=>{let active=true;if(!userId||!course){setProgress(null);return()=>{active=false};}loadCourseProgress(userId,course.id).then(result=>{if(active)setProgress(result.progress)});return()=>{active=false};},[course,userId]));
+  if(!course)return <Screen><PageHeader title="My GWMB Activity"/><AppStateView kind="empty" eyebrow="LEARNING ACTIVITY" title="No active course yet" copy="Your activity will appear when you start a course published in Learn." actionLabel="Explore Learn" onAction={()=>router.push('/learn')}/></Screen>;
   const completedLessonIds=Array.isArray(progress?.completed_lesson_ids)?progress.completed_lesson_ids:[];
   const percent=coursePercent(progress,course.lessons.length); const currentIndex=Math.max(0,course.lessons.findIndex(item=>!completedLessonIds.includes(item.id))); const complete=percent===100;
   return <Screen><PageHeader title="My GWMB Activity"/><View style={styles.stats}><View><Text style={styles.number}>{percent}%</Text><Text style={styles.label}>Course progress</Text></View><View><Text style={styles.number}>{completedLessonIds.length}</Text><Text style={styles.label}>Lessons complete</Text></View><View><Text style={styles.number}>{complete?1:0}</Text><Text style={styles.label}>Certificates</Text></View></View><Text style={styles.section}>Continue learning</Text><Pressable onPress={()=>router.push('/course/workplace-foundations')} style={styles.row}><View style={styles.icon}><Ionicons name={complete?'ribbon':'play'} size={18} color="white"/></View><View style={styles.copy}><Text style={styles.title}>CV that gets noticed</Text><Text style={styles.meta}>{complete?'Complete · Certificate ready':progress?`Lesson ${currentIndex+1} of ${course.lessons.length} · ${percent}%`:'Ready to start · 6 lessons'}</Text></View><Ionicons name="arrow-forward" size={18} color={colors.ink}/></Pressable><Text style={styles.section}>Certificates</Text>{complete?<Pressable onPress={()=>router.push('/certificate/workplace-foundations')} style={styles.certificate}><View style={styles.certificateIcon}><Ionicons name="ribbon-outline" size={25} color={colors.pinkDeep}/></View><View style={styles.copy}><Text style={styles.title}>Build a CV that gets noticed</Text><Text style={styles.meta}>Certificate earned · Tap to view</Text></View><Ionicons name="chevron-forward" size={18} color={colors.muted}/></Pressable>:<View style={styles.empty}><Ionicons name="ribbon-outline" size={27} color={colors.pinkDeep}/><Text style={styles.emptyTitle}>Your certificates will appear here</Text><Text style={styles.emptyCopy}>Complete an eligible course to unlock its certificate.</Text></View>}</Screen>;

@@ -230,8 +230,253 @@ test('the course catalogue only exposes records published by Admin', async () =>
   expectAll(runtime, [
     'const catalog:Record<string,Course>={};',
     'items.forEach',
-    'courseFromContent(item,staticCourses[item.slug])',
+    'courseFromContent(item)',
   ], 'course catalogue');
+});
+
+test('public content journeys never repopulate from bundled demo or static inventories', async () => {
+  const contracts = [
+    {
+      file: 'src/data/courses.ts',
+      forbidden: [/export\s+const\s+courses\b/],
+      reason: 'The app bundle must not contain a shadow course catalogue',
+    },
+    {
+      file: 'src/data/events.ts',
+      forbidden: [/export\s+const\s+events\b/, /\beventById\b/],
+      reason: 'The app bundle must not contain a shadow event catalogue',
+    },
+    {
+      file: 'src/data/opportunities.ts',
+      forbidden: [/export\s+const\s+opportunities\b/, /\bopportunityById\b/],
+      reason: 'The app bundle must not contain a shadow opportunity catalogue',
+    },
+    {
+      file: 'src/data/mentorship.ts',
+      forbidden: [/\bdemoMentors\b/, /\bdemoMentorshipSessions\b/],
+      reason: 'The app bundle must not contain demo mentor or session records',
+    },
+    {
+      file: 'src/lib/course-runtime.ts',
+      forbidden: [/\bstaticCourses\b/],
+      reason: 'Course cards and detail pages must be built only from published Admin course records',
+    },
+    {
+      file: 'src/lib/content-runtime.ts',
+      forbidden: [/cmsEvent\([^)]*fallback\??\s*:/, /cmsOpportunity\([^)]*fallback\??\s*:/],
+      reason: 'CMS event and opportunity adapters must not accept bundled-record fallbacks',
+    },
+    {
+      file: 'src/app/events.tsx',
+      forbidden: [/\beventById\b/],
+      reason: 'The public event list must be empty when Admin has no published events',
+    },
+    {
+      file: 'src/app/event/[id].tsx',
+      forbidden: [/\beventById\b/],
+      reason: 'Event detail must render only the requested published Admin event',
+    },
+    {
+      file: 'src/app/registration/[id].tsx',
+      forbidden: [/\beventById\b/],
+      reason: 'Event registration must not resurrect an unpublished bundled event',
+    },
+    {
+      file: 'src/app/(tabs)/opportunities.tsx',
+      forbidden: [/\bopportunityById\b/],
+      reason: 'The opportunity list must be empty when Admin has no published opportunities',
+    },
+    {
+      file: 'src/app/opportunity/[id].tsx',
+      forbidden: [/\bopportunityById\b/],
+      reason: 'Opportunity detail must render only the requested published Admin opportunity',
+    },
+    {
+      file: 'src/app/resource/[id].tsx',
+      forbidden: [/const\s+resources\s*:\s*Record\s*</, /fallback\s*=\s*resources\s*\[/],
+      reason: 'Resource detail must not be completed from a bundled resource catalogue',
+    },
+    {
+      file: 'src/lib/mentorship-store.ts',
+      forbidden: [/\bdemoMentors\b/, /\bdemoMentorshipSessions\b/],
+      reason: 'Published mentor and mentorship queries must return an empty or not-found result instead of demo people or sessions',
+    },
+    {
+      file: 'src/app/mentorship/[area].tsx',
+      forbidden: [/\bdemoMentorshipSessions\b/],
+      reason: 'Mentorship lists must start empty and wait for the published network',
+    },
+    {
+      file: 'src/components/LearnOverview.tsx',
+      forbidden: [/\bdemoMentorshipSessions\b/, /\bupcomingEvents\b/, /const\s+resources\s*=\s*\[/],
+      reason: 'Learn must not show bundled sessions or resources when the published inventory is empty',
+    },
+    {
+      file: 'src/app/member-wins.tsx',
+      forbidden: [/\bmoreWins\b/, /Celebrating Matilda Yakubo/],
+      reason: 'The Member Spotlight page must be driven by the published member-wins collection',
+    },
+    {
+      file: 'src/app/(tabs)/index.tsx',
+      forbidden: [
+        /\bdefaultBenefits\b/,
+        /\bdefaultCommunityPhotos\b/,
+        /\bdefaultMemberWins\b/,
+        /\bdemoMentorshipSessions\b/,
+        /\beventById\b/,
+        /\bupcomingEvents\b/,
+        /import\s*\{\s*courses\s*\}\s*from\s*['"]@\/data\/courses['"]/,
+        /import\s*\{\s*opportunities\s*\}\s*from\s*['"]@\/data\/opportunities['"]/,
+      ],
+      reason: 'Home must not surface bundled courses, opportunities, spotlights, mentors, sessions or events when Admin content is absent',
+    },
+    {
+      file: 'src/components/HomeDiscoverySections.tsx',
+      forbidden: [/\bdefaultBenefits\b/, /\bdefaultWins\b/],
+      reason: 'Home discovery must not replace empty Admin collections with static benefit cards or stories',
+    },
+    {
+      file: 'src/components/PersonalizedHome.tsx',
+      forbidden: [
+        /\bfallbackMarketplaceInventory\b/,
+        /\beventById\b/,
+        /\bopportunityById\b/,
+        /\bupcomingEvents\b/,
+        /import\s*\{\s*courses\s*\}\s*from\s*['"]@\/data\/courses['"]/,
+      ],
+      reason: 'Personalized Home must aggregate published records and user-owned snapshots only',
+    },
+    {
+      file: 'src/lib/marketplace-inventory.ts',
+      forbidden: [/\bfallbackMarketplaceInventory\b/],
+      reason: 'Marketplace recommendations must not gain inventory from a bundled catalogue',
+    },
+    {
+      file: 'src/lib/marketplace-intelligence.ts',
+      forbidden: [
+        /\bfallbackMarketplaceInventory\b/,
+        /\beventById\b/,
+        /import\s*\{\s*courses\s*\}\s*from\s*['"]@\/data\/courses['"]/,
+      ],
+      reason: 'The recommendation engine must not silently substitute static content',
+    },
+    {
+      file: 'src/app/(tabs)/_layout.tsx',
+      forbidden: [/import\s*\{\s*opportunities\s*\}\s*from\s*['"]@\/data\/opportunities['"]/],
+      reason: 'The Opportunities badge must reflect only the current Admin-published inventory',
+    },
+    {
+      file: 'src/app/activity.tsx',
+      forbidden: [/import\s*\{\s*courses\s*\}\s*from\s*['"]@\/data\/courses['"]/],
+      reason: 'User activity must not resurrect a bundled course that Admin unpublished',
+    },
+    {
+      file: 'src/app/(tabs)/grow.tsx',
+      forbidden: [/import\s*\{\s*courses\s*\}\s*from\s*['"]@\/data\/courses['"]/, /\/resource\/weekly-planning/, /\/mentor\/tosin-adeniran/],
+      reason: 'Grow must not link to bundled course, resource or mentor records that are absent from Admin',
+    },
+    {
+      file: 'src/components/GrowCategoryScreen.tsx',
+      forbidden: [/features:\s*baseCategory\.features\.map\s*\(/],
+      reason: 'Grow category content lists must come from published Admin records rather than bundled feature inventories',
+    },
+    {
+      file: 'src/lib/career-readiness.ts',
+      forbidden: [/export\s+const\s+interviewQuestions\b/, /questions:\s*interviewQuestions/],
+      reason: 'Deleting all Admin practice questions must leave an honest empty state instead of demo questions',
+    },
+    {
+      file: 'src/data/cliques.ts',
+      forbidden: [/export\s+const\s+cliqueSessions\b/, /\bmeeting\s*:/],
+      reason: 'Clique taxonomy must not carry operational meeting dates or session records',
+    },
+    {
+      file: 'src/app/admin/applications.tsx',
+      forbidden: [/\bopportunityById\b/],
+      reason: 'Admin application history must use the canonical linked opportunity record',
+    },
+  ];
+
+  const violations = [];
+  for (const { file, forbidden, reason } of contracts) {
+    const text = await source(file);
+    for (const pattern of forbidden) {
+      if (pattern.test(text)) violations.push(`${file}: ${reason} [${pattern}]`);
+    }
+  }
+  assert.deepEqual(violations, [], `Static content fallbacks remain:\n${violations.join('\n')}`);
+});
+
+test('the public Member Spotlight surface reads the same published records managed by Admin', async () => {
+  const spotlight = await source('src/app/member-wins.tsx');
+  expectAll(spotlight, [
+    "usePublishedContentState('member-wins')",
+    'content.items',
+    'content.loading',
+    'content.error',
+  ], 'Member Spotlight page');
+});
+
+test('Clique sessions and Admin application labels use canonical published records', async () => {
+  const cliqueEvents = await source('src/lib/clique-events.ts');
+  const cliques = await source('src/app/cliques.tsx');
+  const myCliques = await source('src/components/MyCliquesPanel.tsx');
+  expectAll(cliqueEvents, [
+    "item.content_type === 'event'",
+    'item.visible',
+    'item.starts_at',
+    'metadata.program',
+  ], 'Clique event adapter');
+  expectAll(cliques, ["usePublishedContent('events')", 'publishedCliqueSessions(eventContent)'], 'Cliques page');
+  expectAll(myCliques, ["usePublishedContent('events')", 'nextCliqueSession(sessions,clique.id)'], 'My Cliques panel');
+
+  const opportunityStore = await source('src/lib/opportunity-store.ts');
+  expectAll(opportunityStore, [
+    'opportunity_content_id',
+    'opportunity:content_items!opportunity_applications_opportunity_content_id_fkey',
+  ], 'Admin opportunity application query');
+});
+
+test('the latest migration makes publication validation type-aware and repairs legacy published content', async () => {
+  const migration = await source('supabase/migrations/202611040001_content_publication_readiness.sql');
+  expectAll(migration, [
+    'create or replace function public.content_publication_issues(',
+    'create or replace function public.list_content_publication_readiness(',
+    'create or replace function public.validate_content_publication()',
+    "'course'",
+    "'event'",
+    "'resource'",
+    "'opportunity'",
+    'blocking_issue_count',
+    'warning_count',
+    'ready',
+    'update public.content_items',
+    "'member_spotlight'",
+    "set status = 'draft'",
+    'visible = false',
+    'metadata = excluded.metadata',
+    "p_item.access_level in ('account','admin')",
+  ], 'content publication readiness migration');
+
+  const functionStart = migration.indexOf('create or replace function public.content_publication_issues(');
+  const functionBody = migration.indexOf('as $$', functionStart);
+  const functionEnd = migration.indexOf('$$;', functionBody);
+  assert.ok(functionStart >= 0 && functionBody > functionStart && functionEnd > functionBody, 'Could not isolate content_publication_issues()');
+  const validator = migration.slice(functionBody, functionEnd);
+  const firstTypeBranch = validator.search(/(?:if|elsif)\s+(?:v_[a-z0-9_]+|p_item\.content_type)\s*(?:=|in)|case\s+(?:v_[a-z0-9_]+|p_item\.content_type)/i);
+  assert.ok(firstTypeBranch >= 0, 'Publication issue detection must branch by content type');
+  const universalRules = validator.slice(0, firstTypeBranch);
+  assert.doesNotMatch(
+    universalRules,
+    /p_item\.(?:summary|body|image_url|route)/i,
+    'Simple published records must not inherit course/event image, body, summary or route requirements',
+  );
+
+  assert.doesNotMatch(
+    migration,
+    /Complete the title, description, full details, cover image and app route before publishing/i,
+    'The old one-size-fits-all publication requirement must be replaced',
+  );
 });
 
 test('course, event and opportunity actions preserve the canonical record identity', async () => {
@@ -343,5 +588,35 @@ test('account export inventory includes the app personal-data domains', async ()
     'createSignedUrl(path,60*10)',
     'service.auth.admin.deleteUser(request.user_id)',
   ], 'account request processor');
+});
+
+test('startup network outages degrade safely instead of opening the Expo error overlay', async () => {
+  const client = await source('src/lib/supabase.ts');
+  expectAll(client, [
+    'const supabaseFetch:typeof fetch',
+    "status:503",
+    "code:'NETWORK_UNAVAILABLE'",
+    'global:{fetch:supabaseFetch}',
+  ], 'resilient Supabase client');
+
+  const auth = await source('src/providers/AuthProvider.tsx');
+  expectAll(auth, [
+    'const{data,error}=await supabase.auth.getSession()',
+    'if(error)throw error',
+    'if(mounted)setLoading(false)',
+  ], 'auth bootstrap');
+
+  const flags = await source('src/providers/FeatureFlagProvider.tsx');
+  expectAll(flags, [
+    'if(!user){setLoading(false);return;}',
+    'if(active)setLoading(false)',
+  ], 'signed-out feature flags');
+
+  const operations = await source('src/lib/launch-operations.ts');
+  expectAll(operations, [
+    'if(isNetworkFailure(error)',
+    'errorReportInFlight',
+    'errorReportingBlockedUntil',
+  ], 'operational error reporting');
 });
 

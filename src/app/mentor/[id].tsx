@@ -12,8 +12,9 @@ import {
 
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
+import { AppStateView } from '@/components/states/AppStateView';
 import {
- formatSessionDate, mentorImages, type Mentor, type MentorshipSession, type MentorshipType
+ formatSessionDate, type Mentor, type MentorshipSession, type MentorshipType
 } from '@/data/mentorship';
 import {
  loadMentor, loadMentorshipSessions
@@ -50,19 +51,24 @@ export default function MentorDetail(){
   const{id}=useLocalSearchParams<{id:string}>();
   const[mentor,setMentor]=useState<Mentor|null>(null);
   const[sessions,setSessions]=useState<MentorshipSession[]>([]);
+  const[loadedId,setLoadedId]=useState<string|null>(null);
+  const[loadError,setLoadError]=useState<string|null>(null);
 
-  useEffect(()=>{let active=true;Promise.all([loadMentor(id),loadMentorshipSessions()]).then(([m,s])=>{if(active){setMentor(m.mentor);setSessions(s.sessions.filter(item=>item.mentors?.some(person=>person.id===m.mentor.id)))}});return()=>{active=false}},[id]);
+  useEffect(()=>{let active=true;Promise.all([loadMentor(id),loadMentorshipSessions()]).then(([m,s])=>{if(active){setMentor(m.mentor);setSessions(m.mentor?s.sessions.filter(item=>item.mentors?.some(person=>person.id===m.mentor?.id)):[]);setLoadError(m.error?.message??s.error?.message??null);setLoadedId(id)}});return()=>{active=false}},[id]);
+  const loading=loadedId!==id;
   const upcoming=useMemo(()=>sessions.filter(item=>item.status!=='completed'&&item.status!=='cancelled').sort((a,b)=>new Date(a.starts_at).getTime()-new Date(b.starts_at).getTime()),[sessions]);
 
-  if(!mentor)return <Screen><PageHeader title="Mentor profile"/><View style={styles.loading}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;
-  const source=mentor.photo_url?{uri:mentor.photo_url}:mentorImages[mentor.id]??require('../../../assets/media/community/member-01.png');
+  if(loading)return <Screen><PageHeader title="Mentor profile"/><View style={styles.loading}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;
+  if(loadError)return <Screen><PageHeader title="Mentor profile"/><AppStateView kind="error" title="Mentor profile could not load" copy={loadError}/></Screen>;
+  if(!mentor)return <Screen><PageHeader title="Mentor profile"/><AppStateView kind="no-results" eyebrow="MENTOR UNAVAILABLE" title="This mentor profile is no longer available." copy="It may have been unpublished or the link may be incorrect."/></Screen>;
+  const source=mentor.photo_url?{uri:mentor.photo_url}:null;
   const firstName=mentor.full_name.split(' ')[0];
 
   return <Screen>
     <PageHeader title="Mentor profile" eyebrow={mentor.industry}/>
 
     <View style={styles.hero}>
-      <Image source={source} resizeMode="cover" style={styles.heroImage}/>
+      {source?<Image source={source} resizeMode="cover" style={styles.heroImage}/>:<View style={[styles.heroImage,styles.heroPlaceholder]}><Text style={styles.heroPlaceholderText}>{mentor.full_name.split(' ').map(part=>part[0]).join('').slice(0,2)}</Text></View>}
       <LinearGradient colors={['rgba(10,12,24,.02)','rgba(10,12,24,.18)','rgba(10,12,24,.92)']} locations={[0,.46,1]} style={styles.heroShade}/>
       <View style={styles.heroTop}>
         <View style={styles.verifiedPill}><Ionicons name="checkmark-circle" size={13} color="#087553"/><Text style={styles.verifiedText}>GWMB VERIFIED MENTOR</Text></View>
@@ -130,6 +136,18 @@ left:0,
 width:'100%',
 height:'100%',
 transform:[{scale:1.6},{translateX:-28},{translateY:-34}]
+},
+  heroPlaceholder:{
+alignItems:'center',
+justifyContent:'center',
+backgroundColor:'#5B2418',
+transform:[]
+},
+  heroPlaceholderText:{
+color:'white',
+fontFamily:fonts.heading,
+fontSize:64,
+letterSpacing:-2
 },
   heroShade:{
 position:'absolute',

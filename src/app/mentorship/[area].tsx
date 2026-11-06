@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
+import { AppStateView } from '@/components/states/AppStateView';
 import {
- demoMentorshipSessions, formatSessionDate, mentorImages, mentorshipIndustries, type Mentor, type MentorshipSession 
+ formatSessionDate, mentorshipIndustries, type Mentor, type MentorshipSession
 } from '@/data/mentorship';
 import { loadMarketplaceJourney } from '@/lib/marketplace-journey';
 import {
@@ -23,7 +24,7 @@ import {
  colors, fonts 
 } from '@/theme';
 
-function MentorCard({ mentor }:{ mentor:Mentor }) { const source=mentor.photo_url?{uri:mentor.photo_url}:mentorImages[mentor.id]; return <Pressable onPress={() => router.push(`/mentor/${mentor.id}` as Href)} style={styles.mentorCard}>{source?<Image source={source} style={styles.mentorImage}/>:<View style={styles.mentorFallback}><Text style={styles.mentorInitials}>{mentor.full_name.split(' ').map((part)=>part[0]).join('')}</Text></View>}<View style={styles.mentorBody}><Text style={styles.tag}>{mentor.industry}</Text><Text style={styles.mentorName}>{mentor.full_name}</Text><Text style={styles.meta}>{mentor.job_title} · {mentor.organisation}</Text><View style={styles.chips}>{mentor.expertise.slice(0,2).map((item)=><View key={item} style={styles.chip}><Text style={styles.chipText}>{item}</Text></View>)}</View></View></Pressable> }
+function MentorCard({ mentor }:{ mentor:Mentor }) { const source=mentor.photo_url?{uri:mentor.photo_url}:null; return <Pressable onPress={() => router.push(`/mentor/${mentor.id}` as Href)} style={styles.mentorCard}>{source?<Image source={source} style={styles.mentorImage}/>:<View style={styles.mentorFallback}><Text style={styles.mentorInitials}>{mentor.full_name.split(' ').map((part)=>part[0]).join('')}</Text></View>}<View style={styles.mentorBody}><Text style={styles.tag}>{mentor.industry}</Text><Text style={styles.mentorName}>{mentor.full_name}</Text><Text style={styles.meta}>{mentor.job_title} · {mentor.organisation}</Text><View style={styles.chips}>{mentor.expertise.slice(0,2).map((item)=><View key={item} style={styles.chip}><Text style={styles.chipText}>{item}</Text></View>)}</View></View></Pressable> }
 
 function SessionCard({ session, registered }:{session:MentorshipSession;registered?:boolean}) {
   const label=session.mentorship_type==='discovery'?'Discovery Mentorship':session.mentorship_type==='industry'?'Industry Mentorship':'Webinar / Training';
@@ -52,7 +53,7 @@ export default function MentorshipAreaScreen(){
   const { area }=useLocalSearchParams<{area:string}>(); const {
 user,membership
 }=useAuth();
-  const [mentors,setMentors]=useState<Mentor[]>([]); const [sessions,setSessions]=useState<MentorshipSession[]>(demoMentorshipSessions); const [registrations,setRegistrations]=useState<MentorshipRegistration[]>([]); const [applications,setApplications]=useState<MentorshipApplication[]>([]); const [industry,setIndustry]=useState('Product'); const [field,setField]=useState('Product Management'); const [savedInterest,setSavedInterest]=useState(false); const [myTab,setMyTab]=useState<MyTab>('upcoming'); const [mentorQuery,setMentorQuery]=useState(''); const [mentorField,setMentorField]=useState('All'); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false);
+  const [mentors,setMentors]=useState<Mentor[]>([]); const [sessions,setSessions]=useState<MentorshipSession[]>([]); const [registrations,setRegistrations]=useState<MentorshipRegistration[]>([]); const [applications,setApplications]=useState<MentorshipApplication[]>([]); const [industry,setIndustry]=useState('Product'); const [field,setField]=useState('Product Management'); const [savedInterest,setSavedInterest]=useState(false); const [myTab,setMyTab]=useState<MyTab>('upcoming'); const [mentorQuery,setMentorQuery]=useState(''); const [mentorField,setMentorField]=useState('All'); const [loading,setLoading]=useState(true); const [loadError,setLoadError]=useState<string|null>(null); const [saving,setSaving]=useState(false);
   useFocusEffect(useCallback(()=>{let active=true;setLoading(true);Promise.all([loadMentors(),loadMentorshipSessions(),user?loadMentorshipRegistrations(user.id):Promise.resolve({
 registrations:[],
 cloud:false
@@ -65,9 +66,10 @@ cloud:false
 }),user?loadIndustryInterests(user.id):Promise.resolve({
 interests:[],
 error:null
-})]).then(([m,s,r,a,j,i])=>{if(!active)return;setMentors(m.mentors);setSessions(s.sessions.filter(item=>!item.distribution_surfaces||item.distribution_surfaces.includes('mentorship')));setRegistrations(r.registrations);setApplications(a.applications);const saved=i.interests[0];const preferred=saved?.industry??j.journey?.interests.find((item)=>mentorshipIndustries.includes(item));if(preferred){setIndustry(preferred);setField(saved?.subfield||industryFields[preferred]?.[0]||'')}setSavedInterest(Boolean(saved));setLoading(false)});return()=>{active=false}},[user]));
+})]).then(([m,s,r,a,j,i])=>{if(!active)return;setMentors(m.mentors);setSessions(s.sessions.filter(item=>!item.distribution_surfaces||item.distribution_surfaces.includes('mentorship')));setRegistrations(r.registrations);setApplications(a.applications);setLoadError(m.error?.message??s.error?.message??null);const saved=i.interests[0];const preferred=saved?.industry??j.journey?.interests.find((item)=>mentorshipIndustries.includes(item));if(preferred){setIndustry(preferred);setField(saved?.subfield||industryFields[preferred]?.[0]||'')}setSavedInterest(Boolean(saved));setLoading(false)});return()=>{active=false}},[user]));
   const registeredIds=useMemo(()=>new Set(registrations.filter((item)=>item.status!=='cancelled').map((item)=>item.session_id)),[registrations]);
   if(loading)return <Screen><PageHeader title="Mentorship"/><View style={styles.loading}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;
+  if(loadError)return <Screen><PageHeader title="Mentorship"/><AppStateView kind="error" title="Mentorship could not load" copy={loadError}/></Screen>;
   if(area==='mentors'){
     const fields=['All',...Array.from(new Set(mentors.map(item=>item.industry)))];
     const filtered=mentors.filter(item=>(mentorField==='All'||item.industry===mentorField)&&`${item.full_name} ${item.job_title} ${item.organisation} ${item.industry} ${item.expertise.join(' ')}`.toLowerCase().includes(mentorQuery.toLowerCase()));
@@ -81,7 +83,7 @@ error:null
       </LinearGradient>
       <View style={styles.search}><Ionicons name="search-outline" size={18} color={colors.muted}/><TextInput value={mentorQuery} onChangeText={setMentorQuery} placeholder="Search mentors or expertise" placeholderTextColor={colors.muted} style={styles.searchInput}/></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.industryContent}>{fields.map(item=><Pressable key={item} onPress={()=>setMentorField(item)} style={[styles.industryChip,mentorField===item&&styles.industryChipActive]}><Text style={[styles.industryText,mentorField===item&&styles.industryTextActive]}>{item}</Text></Pressable>)}</ScrollView>
-      <View style={[styles.list,{marginTop:16}]}>{filtered.map((mentor)=><MentorCard key={mentor.id} mentor={mentor}/>)}</View>
+      {filtered.length?<View style={[styles.list,{marginTop:16}]}>{filtered.map((mentor)=><MentorCard key={mentor.id} mentor={mentor}/>)}</View>:<AppStateView kind="empty" compact title="No mentors published yet" copy="Approved mentor profiles will appear here when Admin publishes them."/>}
     </Screen>
   }
   if(area==='discovery'){const upcoming=sessions.filter((s)=>s.mentorship_type==='discovery'&&s.status!=='completed');const past=sessions.filter((s)=>s.mentorship_type==='discovery'&&s.status==='completed');return <Screen><PageHeader title="Discovery Mentorship" eyebrow="Explore careers"/><LinearGradient colors={['#38156F','#8746D6','#F06EBB']} style={styles.areaHero}><Ionicons name="compass-outline" size={30} color="white"/><Text style={styles.areaTitle}>Explore careers before you choose.</Text><Text style={styles.areaCopy}>Save a seat for honest conversations about what the work really looks like.</Text></LinearGradient><Text style={styles.section}>Upcoming sessions</Text><View style={styles.list}>{upcoming.map((s)=><SessionCard key={s.id} session={s} registered={registeredIds.has(s.id)}/>)}</View><Text style={styles.section}>Past sessions · also in Learn Replays</Text><View style={styles.list}>{past.map((s)=><SessionCard key={s.id} session={s}/>)}</View></Screen>}

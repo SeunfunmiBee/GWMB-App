@@ -13,7 +13,6 @@ import {
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { AppStateView } from '@/components/states/AppStateView';
-import { opportunityById } from '@/data/opportunities';
 import { loadApplicationProfile } from '@/lib/application-profile-store';
 import { cmsOpportunity, usePublishedContentState } from '@/lib/content-runtime';
 import {
@@ -30,7 +29,7 @@ export default function OpportunityDetail(){
   const{id}=useLocalSearchParams<{id:string}>();const{
 user,membership
 }=useAuth();const content=usePublishedContentState('opportunities');
-  const item=useMemo(()=>{const published=content.items.find(candidate=>candidate.slug===id);return published?cmsOpportunity(published,opportunityById[id]):null},[content.items,id]);
+  const item=useMemo(()=>{const published=content.items.find(candidate=>candidate.slug===id);return published?cmsOpportunity(published):null},[content.items,id]);
   const[saved,setSaved]=useState(false);const[profileReady,setProfileReady]=useState(false);
   useFocusEffect(useCallback(()=>{let active=true;if(!item)return()=>{active=false};Promise.all([loadSavedOpportunityIds(user?.id),user?loadApplicationProfile(user.id):Promise.resolve(null)]).then(([ids,profile])=>{if(!active)return;setSaved(ids.includes(item.id));setProfileReady(Boolean(profile&&(profile.professional_bio||profile.career_direction||profile.strengths.length)))});return()=>{active=false}},[item,user]));
   if(content.loading)return <Screen><PageHeader title="Opportunity"/><View style={styles.state}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;

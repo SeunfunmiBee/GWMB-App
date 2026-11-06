@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { tapFeedback } from '@/lib/feedback';
 import { usePublishedContent } from '@/lib/content-runtime';
-import { opportunities } from '@/data/opportunities';
 import { colors, fonts } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -39,7 +38,7 @@ const icon = (name: IconName, focusedName?: IconName, showDot = false) =>
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const publishedOpportunities=usePublishedContent('opportunities');
-  const opportunityCount=publishedOpportunities.length?publishedOpportunities.filter(item=>item.visible).length:opportunities.length;
+  const opportunityCount=publishedOpportunities.filter(item=>item.visible).length;
   return (
     <Tabs
       screenListeners={{ tabPress: () => { void tapFeedback(); } }}

@@ -9,8 +9,8 @@ import { CliquePromoStrip } from '@/components/CliquePromoStrip';
 import { DestinationHeader } from '@/components/DestinationHeader';
 import type { Course } from '@/data/courses';
 import type { CliqueCategory as CommunityCliqueCategory } from '@/data/cliques';
-import { upcomingEvents, type GwmbEvent } from '@/data/events';
-import { demoMentorshipSessions, type MentorshipSession } from '@/data/mentorship';
+import type { GwmbEvent } from '@/data/events';
+import type { MentorshipSession } from '@/data/mentorship';
 import { coursePercent, loadAllCourseProgress, type CourseProgress } from '@/lib/course-progress';
 import { useCourseCatalog } from '@/lib/course-runtime';
 import { loadEventRegistrations, type EventRegistration } from '@/lib/event-store';
@@ -20,6 +20,7 @@ import { colors, fonts } from '@/theme';
 import { AppStateView } from '@/components/states/AppStateView';
 import { CareerReadinessHub } from '@/components/CareerReadinessHub';
 import { cmsEvent, usePublishedContent } from '@/lib/content-runtime';
+import type { ContentItem } from '@/lib/admin-content';
 
 type LearnSection = 'courses' | 'career-readiness' | 'live' | 'templates' | 'resources';
 type CourseArea = 'tech-digital' | 'business' | 'creative' | 'professional' | 'personal-growth' | 'smart-money' | 'leadership';
@@ -101,15 +102,12 @@ const coursePalettes: Record<string, { surface: string; accent: string }> = {
   'confidence-in-action': { surface: '#F6CBDF', accent: '#94154B' },
 };
 
-const resources = [
-  { id: 'cv-application-guide', type: 'GUIDE', title: 'The CV Application Guide', meta: 'PDF · 9 pages', icon: 'document-text-outline' as const, surface: '#FCE3EF', accent: '#A81455' },
-  { id: 'weekly-planning', type: 'TEMPLATE', title: 'The Weekly Planning Template', meta: 'PDF · 5 pages', icon: 'calendar-outline' as const, surface: '#EFE8FF', accent: '#6035A6' },
-  { id: 'monthly-budget-workbook', type: 'WORKBOOK', title: 'Your Monthly Money Workbook', meta: 'Editable · 12 pages', icon: 'wallet-outline' as const, surface: '#FFF0C9', accent: '#9A6100' },
-  { id: 'first-job-playbook', type: 'BOOK', title: 'The First Job Playbook', meta: 'Digital book · 28 pages', icon: 'book-outline' as const, surface: '#E2F2FF', accent: '#1767A0' },
-  { id: 'presentation-practice', type: 'WORKBOOK', title: 'Presentation Practice Planner', meta: 'PDF · 8 pages', icon: 'mic-outline' as const, surface: '#FCE3EF', accent: '#A81455' },
-  { id: 'better-goals', type: 'GUIDE', title: 'A Better Way to Set Goals', meta: '8 min read', icon: 'flag-outline' as const, surface: '#E6F7EE', accent: '#14704C' },
-  { id: 'conflict-guide', type: 'GUIDE', title: 'Communicating Through Conflict', meta: '12 min read', icon: 'chatbubbles-outline' as const, surface: '#F1ECE8', accent: '#6C4632' },
-];
+type PublishedResource = { id:string;type:string;title:string;meta:string;icon:keyof typeof Ionicons.glyphMap;surface:string;accent:string };
+function publishedResource(item:ContentItem):PublishedResource{
+  const format=String(item.metadata.resource_type??item.metadata.format??'resource').replaceAll('_',' ').toUpperCase();
+  const icon:keyof typeof Ionicons.glyphMap=format.includes('VIDEO')||format.includes('YOUTUBE')?'play-circle-outline':format.includes('TEMPLATE')?'copy-outline':format.includes('BOOK')?'book-outline':'document-text-outline';
+  return{id:item.slug,type:format,title:item.title,meta:String(item.metadata.length??item.metadata.format_label??format),icon,surface:String(item.metadata.surface_color??'#F4EFF3'),accent:String(item.metadata.color??'#A81455')};
+}
 
 function rowsOfTwo<T>(items: T[]) {
   const rows: T[][] = [];
@@ -243,7 +241,7 @@ function LivePanel({ query, registrations, mentorshipRegistrations, mentorshipSe
   const [access,setAccess]=useState<AccessFilter>('All access');
   const registeredIds=useMemo(()=>new Set(registrations.filter(item=>item.status!=='cancelled').map(item=>item.event_id)),[registrations]);
   const now=learningHubLoadedAt;
-  const liveEvents=[...cmsEvents,...upcomingEvents.filter(event=>!cmsEvents.some(item=>item.id===event.id))];
+  const liveEvents=cmsEvents;
   const list = liveEvents.filter(event => {
     const start=event.startsAt?new Date(event.startsAt).getTime():Number.NaN;
     const current=Number.isFinite(start)&&start+2*60*60*1000>=now;
@@ -260,8 +258,9 @@ function LivePanel({ query, registrations, mentorshipRegistrations, mentorshipSe
 
 function ResourcesPanel({ query,mode }: { query: string;mode:'templates'|'resources' }) {
   const router = useRouter();
+  const published=usePublishedContent('resources');
   const templateTypes=new Set(['TEMPLATE','WORKBOOK']);
-  const list = resources.filter(item => (mode==='templates'?templateTypes.has(item.type):!templateTypes.has(item.type))&&`${item.title} ${item.type}`.toLowerCase().includes(query.toLowerCase()));
+  const list = published.map(publishedResource).filter(item => (mode==='templates'?templateTypes.has(item.type):!templateTypes.has(item.type))&&`${item.title} ${item.type}`.toLowerCase().includes(query.toLowerCase()));
   if (!list.length) return <EmptyState icon={mode==='templates'?'copy-outline':'library-outline'} title={mode==='templates'?'No templates found':'No resources found'} copy="Try a different title or format." />;
   return <View>
     <SectionHeading eyebrow={mode==='templates'?'READY TO USE':'READ, WATCH & EXPLORE'} title={mode==='templates'?'Templates & workbooks':'Resources'} />
@@ -278,11 +277,13 @@ function ResourcesPanel({ query,mode }: { query: string;mode:'templates'|'resour
 function SearchResultsPanel({ query, mentorshipSessions }: { query: string; mentorshipSessions:MentorshipSession[] }) {
   const router=useRouter();
   const courseCatalog=useCourseCatalog();
+  const publishedEvents=usePublishedContent('events');
+  const publishedResources=usePublishedContent('resources');
   const term=query.trim().toLowerCase();
   const courseResults=Object.values(courseCatalog).filter(course=>`${course.title} ${course.promise} ${course.eyebrow} ${course.subcategory} ${course.source}`.toLowerCase().includes(term));
-  const liveResults=upcomingEvents.filter(event=>{const start=event.startsAt?new Date(event.startsAt).getTime():Number.NaN;return Number.isFinite(start)&&start+2*60*60*1000>=learningHubLoadedAt&&`${event.title} ${event.copy} ${event.type} ${eventProgramme(event.type,event.title)}`.toLowerCase().includes(term)}).sort((a,b)=>new Date(a.startsAt!).getTime()-new Date(b.startsAt!).getTime());
+  const liveResults=publishedEvents.map(cmsEvent).filter(event=>{const start=event.startsAt?new Date(event.startsAt).getTime():Number.NaN;return Number.isFinite(start)&&start+2*60*60*1000>=learningHubLoadedAt&&`${event.title} ${event.copy} ${event.type} ${eventProgramme(event.type,event.title)}`.toLowerCase().includes(term)}).sort((a,b)=>new Date(a.startsAt!).getTime()-new Date(b.startsAt!).getTime());
   const replayResults=mentorshipSessions.filter(item=>item.status==='completed'&&item.replay_url&&`${item.title} ${item.description} ${item.industry}`.toLowerCase().includes(term));
-  const resourceResults=resources.filter(item=>`${item.title} ${item.type} ${item.meta}`.toLowerCase().includes(term));
+  const resourceResults=publishedResources.map(publishedResource).filter(item=>`${item.title} ${item.type} ${item.meta}`.toLowerCase().includes(term));
   const total=courseResults.length+liveResults.length+replayResults.length+resourceResults.length;
   const row=(key:string,label:string,title:string,meta:string,route:string,icon:keyof typeof Ionicons.glyphMap)=><Pressable key={key} onPress={()=>router.push(route as never)} style={styles.searchResult}><View style={styles.searchResultIcon}><Ionicons name={icon} size={19} color={colors.pinkDeep}/></View><View style={styles.searchResultCopy}><Text style={styles.searchResultType}>{label}</Text><Text style={styles.searchResultTitle}>{title}</Text><Text style={styles.searchResultMeta}>{meta}</Text></View><Ionicons name="arrow-forward" size={17} color={colors.ink}/></Pressable>;
   return <View><SectionHeading eyebrow="SEARCHING ALL OF LEARN" title={total?`${total} ${total===1?'result':'results'}`:'No results'}/>{!total?<AppStateView kind="no-results" compact title={`Nothing matched “${query}”`} copy="Try a broader skill, topic or programme name."/>:<View style={styles.searchResults}>{courseResults.map(item=>row(`course-${item.id}`,'COURSE',item.title,`${item.source} · ${item.duration}`,`/course/${item.id}`,'school-outline'))}{liveResults.map(item=>row(`live-${item.id}`,'LIVE SESSION',item.title,`${eventProgramme(item.type,item.title)} · ${item.dateShort}`,`/event/${item.id}`,'radio-outline'))}{replayResults.map(item=>row(`replay-${item.id}`,'REPLAY',item.title,`${item.mentors?.[0]?.full_name??'GWMB Speaker'} · 48 min`,`/mentorship-session/${item.id}`,'play-circle-outline'))}{resourceResults.map(item=>row(`resource-${item.id}`,'RESOURCE',item.title,item.meta,`/resource/${item.id}`,'library-outline'))}</View>}</View>;
@@ -303,7 +304,7 @@ export function LearnOverview() {
   const [progress, setProgress] = useState<CourseProgress[]>([]);
   const [registrations,setRegistrations]=useState<EventRegistration[]>([]);
   const [mentorshipRegistrations,setMentorshipRegistrations]=useState<MentorshipRegistration[]>([]);
-  const [mentorshipSessions,setMentorshipSessions]=useState<MentorshipSession[]>(demoMentorshipSessions);
+  const [mentorshipSessions,setMentorshipSessions]=useState<MentorshipSession[]>([]);
   const [category, setCategory] = useState<CourseArea | null>(null);
   const [subcategory, setSubcategory] = useState<string | null>(null);
   useFocusEffect(useCallback(() => {

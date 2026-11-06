@@ -32,26 +32,13 @@ export type MarketplaceInventoryItem = {
   fresh_until?: string | null;
 };
 
-export const fallbackMarketplaceInventory: MarketplaceInventoryItem[] = [
-  { id:'mentorship-discovery',source_id:'discovery',content_type:'mentorship',title:'Explore careers through Discovery Mentorship',summary:'Join honest conversations that help you understand a career before choosing it.',route:'/mentorship/discovery',career_areas:[],skills:['Career Discovery'],journey_stages:['explore'],readiness_gaps:['career_clarity'],career_stages:['student','nysc','recent-graduate','early-career'],access_level:'Open Access',location:'Online',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'Explore Discovery Mentorship',tone:'#7A35D1',priority:92,metadata:{mentorship_type:'discovery'},published:true },
-  { id:'mentorship-industry',source_id:'industry',content_type:'mentorship',title:'Grow through Industry Mentorship',summary:'Get deeper professional guidance in the field you have chosen.',route:'/mentorship/industry',career_areas:[],skills:['Industry Understanding'],journey_stages:['prepare'],readiness_gaps:['industry_understanding','guidance'],career_stages:['student','nysc','recent-graduate','early-career'],access_level:'Open Access',location:'Online',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'Explore Industry Mentorship',tone:'#3150E8',priority:78,metadata:{mentorship_type:'industry'},published:true },
-  { id:'mentorship-one-on-one',source_id:'one-on-one',content_type:'mentorship',title:'Request focused one-on-one guidance',summary:'Apply for individual guidance on a specific career decision or challenge.',route:'/mentorship/one-on-one',career_areas:[],skills:['Career Guidance'],journey_stages:['prepare'],readiness_gaps:['guidance'],career_stages:['student','nysc','recent-graduate','early-career','entrepreneur'],access_level:'Members Only',location:'Online',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'Explore One-on-One Mentorship',tone:'#A81455',priority:70,metadata:{mentorship_type:'one_on_one'},published:true },
-  { id:'course-workplace-foundations',source_id:'workplace-foundations',content_type:'course',title:'Build a CV That Gets Noticed',summary:'Six practical lessons for creating a clearer, stronger application CV.',route:'/course/workplace-foundations',career_areas:[],skills:['CV Writing','Professional Positioning'],journey_stages:['prepare'],readiness_gaps:['professional_positioning'],career_stages:['student','nysc','recent-graduate','early-career'],access_level:'Open Access',location:'Online',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'Build my CV',tone:'#A81455',priority:90,metadata:{lesson_count:6},published:true },
-  { id:'course-budgeting',source_id:'budgeting',content_type:'course',title:'Budgeting Without the Stress',summary:'Build a realistic budget and a calmer weekly money rhythm.',route:'/course/budgeting',career_areas:['Finance','Entrepreneurship','Business Growth'],skills:['Budgeting','Money Management'],journey_stages:['prepare'],readiness_gaps:['business_finance','foundational_knowledge'],career_stages:['student','nysc','recent-graduate','early-career','entrepreneur'],access_level:'Open Access',location:'Online',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'Start learning',tone:'#C48414',priority:70,metadata:{lesson_count:4},published:true },
-  { id:'course-self-leadership',source_id:'self-leadership',content_type:'course',title:'Leading Yourself First',summary:'Build ownership, self-awareness and dependable professional habits.',route:'/course/self-leadership',career_areas:[],skills:['Leadership','Self Management'],journey_stages:['prepare'],readiness_gaps:['workplace_readiness'],career_stages:['student','nysc','recent-graduate','early-career','entrepreneur'],access_level:'Open Access',location:'Online',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'Start course',tone:'#111011',priority:65,metadata:{lesson_count:5},published:true },
-  { id:'event-product-manager',source_id:'product-manager',content_type:'event',title:'Should You Become a Product Manager?',summary:'An honest career-discovery conversation about product management.',route:'/event/product-manager',career_areas:['Product'],skills:['Career Discovery','Product Management'],journey_stages:['explore'],readiness_gaps:['career_clarity','industry_understanding'],career_stages:['student','nysc','recent-graduate','early-career'],access_level:'Open Access',location:'Online',starts_at:'2027-04-16T19:30:00+01:00',deadline_at:null,availability:'scheduled',prerequisites:[],action_label:'Explore the session',tone:'#E62B7F',priority:80,metadata:{speaker:'Adeola Adeyemi'},published:true },
-  { id:'event-side-hustle',source_id:'side-hustle',content_type:'event',title:'From Side Hustle to Real Income',summary:'Practical lessons about offers, pricing and building a sales rhythm.',route:'/event/side-hustle',career_areas:['Entrepreneurship','Business Growth'],skills:['Pricing','Sales'],journey_stages:['prepare'],readiness_gaps:['business_growth','business_finance'],career_stages:['student','nysc','recent-graduate','early-career','entrepreneur'],access_level:'Members Only',location:'Online',starts_at:'2026-10-19T18:00:00+01:00',deadline_at:null,availability:'scheduled',prerequisites:[],action_label:'View the session',tone:'#C48414',priority:80,metadata:{format:'live'},published:true },
-  { id:'opportunity-women-tech',source_id:'women-tech',content_type:'opportunity',title:'Women in Tech Scholarship',summary:'Supported digital-skills training with a practical portfolio pathway.',route:'/opportunity/women-tech',career_areas:['Data','Software','AI','Cybersecurity','Product','Design'],skills:['Digital Skills'],journey_stages:['prepare','access'],readiness_gaps:['skill_readiness','opportunity_access'],career_stages:['student','nysc','recent-graduate','early-career'],access_level:'Open Access',location:'Remote',starts_at:null,deadline_at:'2026-10-12T23:59:00+01:00',availability:'available',prerequisites:[],action_label:'View opportunity',tone:'#3150E8',priority:85,metadata:{organisation:'Future Skills Africa',opportunity_type:'Scholarship'},published:true },
-  { id:'opportunity-emerging-leaders',source_id:'gwmb-fund',content_type:'opportunity',title:'Emerging Leaders Fellowship',summary:'Guided learning, projects and a supportive leadership cohort.',route:'/opportunity/gwmb-fund',career_areas:[],skills:['Leadership'],journey_stages:['prepare','access'],readiness_gaps:['skill_readiness','evidence_of_ability','opportunity_access'],career_stages:['student','nysc','recent-graduate','early-career','entrepreneur'],access_level:'Members Only',location:'Nigeria',starts_at:null,deadline_at:null,availability:'available',prerequisites:[],action_label:'View fellowship',tone:'#5939C8',priority:60,metadata:{organisation:'Girls Who Mean Business',opportunity_type:'Fellowship'},published:true },
-];
-
 const inventoryKey = 'gwmb-marketplace-inventory:v1';
 
 function readLocal() {
   try {
     const value = globalThis.localStorage?.getItem(inventoryKey);
-    return value ? JSON.parse(value) as MarketplaceInventoryItem[] : fallbackMarketplaceInventory;
-  } catch { return fallbackMarketplaceInventory; }
+    return value ? JSON.parse(value) as MarketplaceInventoryItem[] : [];
+  } catch { return []; }
 }
 
 function writeLocal(items: MarketplaceInventoryItem[]) {
@@ -78,12 +65,18 @@ export async function loadMarketplaceInventory() {
     ...(sessionResult.data??[]).filter(session=>!Array.isArray(session.distribution_surfaces)||session.distribution_surfaces.includes('home')).map(mentorshipSessionToInventory),
     ...(mentorResult.data??[]).map(mentorToInventory),
   ];
+  const successfulCloudItems=inventoryResult.error?[]:cloudItems;
+  const successfulDynamicItems=[
+    ...(contentResult.error?[]:dynamicItems.filter(item=>item.metadata.area)),
+    ...(sessionResult.error?[]:dynamicItems.filter(item=>item.metadata.source==='mentorship')),
+    ...(mentorResult.error?[]:dynamicItems.filter(item=>item.metadata.source==='mentor')),
+  ];
   const merged=new Map<string,MarketplaceInventoryItem>();
-  [...local,...cloudItems,...dynamicItems].forEach(item=>merged.set(`${item.content_type}:${item.source_id}`,item));
+  [...successfulCloudItems,...successfulDynamicItems].forEach(item=>merged.set(`${item.content_type}:${item.source_id}`,item));
   const items=[...merged.values()].filter(item=>isInventoryItemAvailable(item)).sort((a,b)=>b.priority-a.priority);
-  if (!items.length) return { items: local, cloud: false };
-  writeLocal(items);
-  return { items, cloud: !inventoryResult.error||!contentResult.error||!sessionResult.error||!mentorResult.error };
+  const cloud=!inventoryResult.error&&!contentResult.error&&!sessionResult.error&&!mentorResult.error;
+  if(cloud)writeLocal(items);
+  return { items:cloud?items:(items.length?items:local), cloud };
 }
 
 const strings=(value:unknown)=>Array.isArray(value)?value.filter(item=>typeof item==='string') as string[]:[];

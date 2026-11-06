@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { logAppError } from '@/lib/launch-operations';
+import { isNetworkFailure, logAppError } from '@/lib/launch-operations';
 
 type NativeErrorHandler=(error:Error,isFatal?:boolean)=>void;
 type NativeErrorUtils={getGlobalHandler:()=>NativeErrorHandler;setGlobalHandler:(handler:NativeErrorHandler)=>void};
@@ -10,7 +10,10 @@ export function OperationalErrorBridge(){
   useEffect(()=>{
     if(Platform.OS==='web'){
       const onError=(event:ErrorEvent)=>{void logAppError('web-global-error',event.error??event.message,{filename:event.filename,line:event.lineno,column:event.colno},'fatal')};
-      const onRejection=(event:PromiseRejectionEvent)=>{void logAppError('unhandled-promise-rejection',event.reason,{},'error')};
+      const onRejection=(event:PromiseRejectionEvent)=>{
+        if(isNetworkFailure(event.reason))event.preventDefault();
+        void logAppError('unhandled-promise-rejection',event.reason,{},'error');
+      };
       window.addEventListener('error',onError);window.addEventListener('unhandledrejection',onRejection);
       return()=>{window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onRejection)};
     }

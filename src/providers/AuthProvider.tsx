@@ -1,7 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { supabase } from '@/lib/supabase';
+import { backendNetworkEnabled, supabase } from '@/lib/supabase';
 import type { ChapterAccess } from '@/lib/chapter-admin';
 import type { Membership, Profile } from '@/types/database';
 
@@ -30,8 +30,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [membership, setMembership] = useState<Membership | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [chapterAdminAccess, setChapterAdminAccess] = useState<ChapterAccess[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [accountLoading, setAccountLoading] = useState(true);
+  const [loading, setLoading] = useState(backendNetworkEnabled);
+  const [accountLoading, setAccountLoading] = useState(backendNetworkEnabled);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const accountRequest = useRef(0);
@@ -50,42 +50,55 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setAccountLoading(false);
       return;
     }
-    const [profileResult, membershipResult, adminResult,chapterResult] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('memberships').select('*').eq('user_id', userId).maybeSingle(),
-      supabase.rpc('is_app_admin'),
-      supabase.rpc('get_my_chapter_admin_access'),
-    ]);
-    if (request !== accountRequest.current) return;
-    const error = profileResult.error ?? membershipResult.error ?? adminResult.error ?? chapterResult.error;
-    if (error) {
+    try {
+      const [profileResult, membershipResult, adminResult,chapterResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('memberships').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.rpc('is_app_admin'),
+        supabase.rpc('get_my_chapter_admin_access'),
+      ]);
+      if (request !== accountRequest.current) return;
+      const error = profileResult.error ?? membershipResult.error ?? adminResult.error ?? chapterResult.error;
+      if (error) throw error;
+      setProfile(profileResult.data as Profile | null);
+      setMembership(membershipResult.data as Membership | null);
+      setIsAdmin(adminResult.data === true);
+      setChapterAdminAccess((chapterResult.data??[]) as ChapterAccess[]);
+      setAccountError(null);
+    } catch (error) {
+      if (request !== accountRequest.current) return;
       setProfile(null);
       setMembership(null);
       setIsAdmin(false);
       setChapterAdminAccess([]);
-      setAccountError(error.message);
-      setAccountLoading(false);
-      return;
+      setAccountError(error instanceof Error?error.message:'Your account could not be loaded.');
+    } finally {
+      if (request === accountRequest.current) setAccountLoading(false);
     }
-    setProfile(profileResult.data as Profile | null);
-    setMembership(membershipResult.data as Membership | null);
-    setIsAdmin(adminResult.data === true);
-    setChapterAdminAccess((chapterResult.data??[]) as ChapterAccess[]);
-    setAccountError(null);
-    setAccountLoading(false);
   }, []);
 
   const refreshAccount = useCallback(async () => loadAccount(session?.user.id), [loadAccount, session?.user.id]);
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      hadSession.current = Boolean(data.session);
-      setSession(data.session);
-      await loadAccount(data.session?.user.id);
-      if (mounted) setLoading(false);
-    });
+    if(!backendNetworkEnabled){
+      return()=>{mounted=false;};
+    }
+    void (async()=>{
+      try{
+        const{data,error}=await supabase.auth.getSession();
+        if(error)throw error;
+        if(!mounted)return;
+        hadSession.current=Boolean(data.session);
+        setSession(data.session);
+        await loadAccount(data.session?.user.id);
+      }catch{
+        // Public routes, including Welcome, must remain usable during an outage.
+        if(mounted){setSession(null);setAccountLoading(false);}
+      }finally{
+        if(mounted)setLoading(false);
+      }
+    })();
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'SIGNED_OUT' && hadSession.current && !intentionalSignOut.current) setSessionExpired(true);
       if (nextSession) { hadSession.current = true; setSessionExpired(false); }

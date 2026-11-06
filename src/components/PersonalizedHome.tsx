@@ -9,18 +9,14 @@ import { Screen } from '@/components/Screen';
 import { AnimatedProgress } from '@/components/motion/AnimatedProgress';
 import { FadeIn } from '@/components/motion/FadeIn';
 import { SpringPressable } from '@/components/motion/SpringPressable';
-import { courses } from '@/data/courses';
-import { cliqueSessions } from '@/data/cliques';
-import { eventById, upcomingEvents } from '@/data/events';
 import type { MentorshipSession } from '@/data/mentorship';
-import { opportunityById } from '@/data/opportunities';
 import { coursePercent, type CourseProgress } from '@/lib/course-progress';
-import { loadCliqueSessionSeats } from '@/lib/clique-store';
+import { useCourseCatalog } from '@/lib/course-runtime';
 import { loadCv, type CvRecord } from '@/lib/cv-store';
 import type { EventRegistration } from '@/lib/event-store';
 import type { MentorshipRegistration } from '@/lib/mentorship-store';
 import { tapFeedback } from '@/lib/feedback';
-import { fallbackMarketplaceInventory, freshMarketplaceItems, loadMarketplaceInventory, subscribeToMarketplaceChanges, type MarketplaceInventoryItem } from '@/lib/marketplace-inventory';
+import { freshMarketplaceItems, loadMarketplaceInventory, subscribeToMarketplaceChanges, type MarketplaceInventoryItem } from '@/lib/marketplace-inventory';
 import { completionPatchFor, emptyReadinessProfile, loadReadinessProfile, loadRecommendationFeedback, loadServerMarketplaceIntelligence, recordRecommendationFeedback, runMarketplaceIntelligence, saveReadinessPatch, type IntelligenceRecommendation, type MarketplaceIntelligence, type MarketplaceReadinessProfile, type RecommendationFeedbackAction } from '@/lib/marketplace-intelligence';
 import { goalLabel, stageLabel, type MarketplaceJourney } from '@/lib/marketplace-journey';
 import type { OpportunityApplication } from '@/lib/opportunity-store';
@@ -28,6 +24,7 @@ import { eventCountdown } from '@/lib/time';
 import { colors, fonts } from '@/theme';
 import { ProfileCompletionCard } from '@/components/ProfileCompletionCard';
 import { useAuth } from '@/providers/AuthProvider';
+import { cmsEvent, cmsOpportunity, usePublishedContent } from '@/lib/content-runtime';
 
 type Props = { firstName:string; initials:string; avatarUrl?:string|null; isMember:boolean; journey:MarketplaceJourney; courseProgress:CourseProgress|null; courseProgresses:CourseProgress[]; registrations:EventRegistration[]; mentorshipRegistrations:MentorshipRegistration[]; mentorshipSessions:MentorshipSession[]; applications:OpportunityApplication[]; unreadNotifications:number };
 type Commitment = { id:string; title:string; startsAt:string; route:string; location:string; isLive:boolean; startsSoon:boolean };
@@ -37,12 +34,14 @@ const iconForType=(item:MarketplaceInventoryItem):ComponentProps<typeof Ionicons
 
 export function PersonalizedHome({ firstName, initials, avatarUrl, isMember, journey, courseProgress, courseProgresses, registrations, mentorshipRegistrations, mentorshipSessions, applications, unreadNotifications }:Props) {
   const{profile}=useAuth();
+  const courseCatalog=useCourseCatalog();
+  const publishedEvents=usePublishedContent('events');
+  const publishedOpportunities=usePublishedContent('opportunities');
   const [readiness,setReadiness]=useState<MarketplaceReadinessProfile>(()=>emptyReadinessProfile(journey.user_id));
   const [feedback,setFeedback]=useState<{recommendation_key:string;action:RecommendationFeedbackAction}[]>([]);
-  const [inventory,setInventory]=useState<MarketplaceInventoryItem[]>(fallbackMarketplaceInventory);
+  const [inventory,setInventory]=useState<MarketplaceInventoryItem[]>([]);
   const [serverIntelligence,setServerIntelligence]=useState<MarketplaceIntelligence|null>(null);
   const [cv,setCv]=useState<CvRecord|null>(null);
-  const [cliqueSeatIds,setCliqueSeatIds]=useState<string[]>([]);
   const [inventoryRevision,setInventoryRevision]=useState(0);
   const [freshIndex,setFreshIndex]=useState(0);
   const [updating,setUpdating]=useState(false); const [completionMessage,setCompletionMessage]=useState<string|null>(null); const [now,setNow]=useState(()=>Date.now());
@@ -51,24 +50,22 @@ export function PersonalizedHome({ firstName, initials, avatarUrl, isMember, jou
   useFocusEffect(useCallback(()=>{setInventoryRevision(value=>value+1);return()=>{}},[]));
   useEffect(()=>subscribeToMarketplaceChanges(()=>setInventoryRevision(value=>value+1)),[]);
   useEffect(()=>{let active=true;Promise.all([loadReadinessProfile(journey.user_id),loadRecommendationFeedback(journey.user_id),loadMarketplaceInventory(),loadServerMarketplaceIntelligence(),loadCv(journey.user_id)]).then(([profileResult,feedbackResult,inventoryResult,serverResult,cvResult])=>{if(!active)return;setReadiness(profileResult.profile);setFeedback(feedbackResult);setInventory(inventoryResult.items);setServerIntelligence(serverResult.intelligence);setCv(cvResult.cv)});return()=>{active=false}},[applications.length,courseProgress?.updated_at,inventoryRevision,journey.updated_at,journey.user_id,registrations.length]);
-  useEffect(()=>{let active=true;loadCliqueSessionSeats(journey.user_id).then(ids=>{if(active)setCliqueSeatIds(ids)});return()=>{active=false}},[journey.user_id]);
 
   const dismissedKeys=useMemo(()=>feedback.filter(item=>['dismissed','alternate_requested','completed_external'].includes(item.action)).map(item=>item.recommendation_key),[feedback]);
   const localIntelligence=useMemo(()=>runMarketplaceIntelligence({journey,readiness,courseProgress,registrations,applications,isMember,inventory,dismissedKeys}),[applications,courseProgress,dismissedKeys,inventory,isMember,journey,readiness,registrations]);
   const intelligence=serverIntelligence??localIntelligence;
   const commitments=useMemo<Commitment[]>(()=>{
-    const events=registrations.filter(item=>item.status!=='cancelled').map(registration=>{const event=eventById[registration.event_id];const startsAt=registration.event_starts_at??event?.startsAt??'';const start=startsAt?new Date(startsAt).getTime():Number.NaN;return{id:registration.event_id,title:registration.event_title??event?.title??'Your GWMB session',startsAt,route:registration.event_route??`/event/${registration.event_id}`,location:event?.location??'GWMB event',isLive:Number.isFinite(start)&&start<=now&&start+2*HOUR>=now,startsSoon:Number.isFinite(start)&&start>now&&start-now<=HOUR}});
+    const events=registrations.filter(item=>item.status!=='cancelled').flatMap(registration=>{const content=publishedEvents.find(item=>item.id===registration.event_id||item.slug===registration.event_id||`/event/${item.slug}`===registration.event_route);if(!content)return[];const event=cmsEvent(content);const startsAt=event.startsAt??'';const start=startsAt?new Date(startsAt).getTime():Number.NaN;return[{id:registration.event_id,title:event.title,startsAt,route:`/event/${event.id}`,location:event.location,isLive:Number.isFinite(start)&&start<=now&&start+2*HOUR>=now,startsSoon:Number.isFinite(start)&&start>now&&start-now<=HOUR}]});
     const mentorship=mentorshipRegistrations.filter(item=>item.status!=='cancelled').map(registration=>{const session=mentorshipSessions.find(item=>item.id===registration.session_id);const startsAt=session?.starts_at??'';const start=startsAt?new Date(startsAt).getTime():Number.NaN;return{id:`mentorship-${registration.session_id}`,title:session?.title??'Your mentorship session',startsAt,route:`/mentorship-session/${registration.session_id}`,location:`${session?.mentorship_type==='discovery'?'Discovery':'Industry'} Mentorship`,isLive:Number.isFinite(start)&&start<=now&&start+2*HOUR>=now,startsSoon:Number.isFinite(start)&&start>now&&start-now<=HOUR}});
-    const cliques=cliqueSessions.filter(session=>cliqueSeatIds.includes(session.id)).map(session=>{const startsAt=session.startsAt;const start=new Date(startsAt).getTime();return{id:`clique-${session.id}`,title:session.title,startsAt,route:'/cliques',location:'Your Clique',isLive:Number.isFinite(start)&&start<=now&&start+2*HOUR>=now,startsSoon:Number.isFinite(start)&&start>now&&start-now<=HOUR}});
-    return[...events,...mentorship,...cliques].filter(item=>item.startsAt&&new Date(item.startsAt).getTime()+2*HOUR>=now).sort((a,b)=>new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime());
-  },[cliqueSeatIds,mentorshipRegistrations,mentorshipSessions,now,registrations]);
+    return[...events,...mentorship].filter(item=>item.startsAt&&new Date(item.startsAt).getTime()+2*HOUR>=now).sort((a,b)=>new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime());
+  },[mentorshipRegistrations,mentorshipSessions,now,publishedEvents,registrations]);
   const urgentCommitment=commitments.find(item=>item.isLive||item.startsSoon)??null;
   const primary=useMemo<IntelligenceRecommendation>(()=>urgentCommitment?{key:`commitment-${urgentCommitment.id}`,eyebrow:urgentCommitment.isLive?'HAPPENING NOW':'STARTING SOON',title:urgentCommitment.title,shortExplanation:urgentCommitment.isLive?'Your session is live. Join now so you do not miss it.':`${eventCountdown(urgentCommitment.startsAt)}. Your place is saved.`,whyThisNow:'A commitment you have already made takes priority over discovering something new.',actionType:'event',linkedItemId:urgentCommitment.id,cta:urgentCommitment.isLive?'Join session':'View details',route:urgentCommitment.route,accessLevel:'Open Access',icon:'calendar-outline',tone:'#3150E8',addresses:'time_sensitive'}:intelligence.primary,[intelligence.primary,urgentCommitment]);
-  const incompleteCourse=useMemo(()=>courseProgresses.filter(item=>{const course=courses[item.course_id];return course&&!item.completed_at&&item.completed_lesson_ids.length<course.lessons.length}).sort((a,b)=>new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime())[0]??null,[courseProgresses]);
-  const incompleteCourseData=incompleteCourse?courses[incompleteCourse.course_id]:null; const incompletePercent=incompleteCourse&&incompleteCourseData?coursePercent(incompleteCourse,incompleteCourseData.lessons.length):0;
+  const incompleteCourse=useMemo(()=>courseProgresses.filter(item=>{const course=courseCatalog[item.course_id];return course&&!item.completed_at&&item.completed_lesson_ids.length<course.lessons.length}).sort((a,b)=>new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime())[0]??null,[courseCatalog,courseProgresses]);
+  const incompleteCourseData=incompleteCourse?courseCatalog[incompleteCourse.course_id]:null; const incompletePercent=incompleteCourse&&incompleteCourseData?coursePercent(incompleteCourse,incompleteCourseData.lessons.length):0;
   const unfinishedCv=cv?.status==='draft'?cv:null;
   const applicationDraft=useMemo(()=>applications.filter(item=>item.status==='draft').sort((a,b)=>new Date(b.updated_at).getTime()-new Date(a.updated_at).getTime())[0]??null,[applications]);
-  const draftOpportunity=applicationDraft?opportunityById[applicationDraft.opportunity_id]:null;
+  const draftOpportunity=applicationDraft?publishedOpportunities.map(cmsOpportunity).find(item=>item.id===applicationDraft.opportunity_id)??null:null;
   const showContinueCv=Boolean(!applicationDraft&&unfinishedCv&&!primary.route.startsWith('/cv'));
   const showContinue=Boolean(!applicationDraft&&!showContinueCv&&incompleteCourse&&incompleteCourseData&&primary.route!==`/course/${incompleteCourse.course_id}`);
   const upcomingCommitments=commitments.filter(item=>item.id!==urgentCommitment?.id).slice(0,2);
@@ -77,8 +74,7 @@ export function PersonalizedHome({ firstName, initials, avatarUrl, isMember, jou
   const featuredLiveItem=useMemo(()=>{
     const live=inventory.filter(item=>item.content_type==='event'&&!registeredEventRoutes.has(item.route)&&Boolean(item.starts_at)&&new Date(item.starts_at as string).getTime()+2*HOUR>=now&&(isMember||item.access_level==='Open Access')).sort((a,b)=>new Date(a.starts_at as string).getTime()-new Date(b.starts_at as string).getTime())[0];
     if(live){const date=new Date(live.starts_at as string);return{id:live.source_id,route:live.route,title:live.title,type:textForType(live),tone:live.tone,startsAt:live.starts_at as string,day:String(date.getDate()).padStart(2,'0'),month:date.toLocaleString('en-NG',{month:'short'}).toUpperCase(),dateShort:date.toLocaleString('en-NG',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}),location:live.location??'Online'};}
-    const fallback=upcomingEvents.filter(event=>Boolean(event.startsAt)&&new Date(event.startsAt as string).getTime()+2*HOUR>=now).sort((a,b)=>new Date(a.startsAt as string).getTime()-new Date(b.startsAt as string).getTime())[0];
-    return fallback?{id:fallback.id,route:`/event/${fallback.id}`,title:fallback.title,type:fallback.type,tone:fallback.tone,startsAt:fallback.startsAt as string,day:fallback.day,month:fallback.month,dateShort:fallback.dateShort,location:fallback.location}:null;
+    return null;
   },[inventory,isMember,now,registeredEventRoutes]);
   const featuredLiveState=featuredLiveItem?.startsAt&&new Date(featuredLiveItem.startsAt).getTime()<=now?'HAPPENING NOW':featuredLiveItem?.startsAt?eventCountdown(featuredLiveItem.startsAt)||'UPCOMING LIVE SESSION':'UPCOMING LIVE SESSION';
   const featuredSessionHeading=featuredLiveItem?.startsAt&&new Date(featuredLiveItem.startsAt).getTime()<=now?'Happening Now':'Upcoming Sessions';

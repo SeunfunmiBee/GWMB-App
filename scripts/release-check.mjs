@@ -16,6 +16,7 @@ const requiredMigrations=[
   '202610290001_release_blocker_security_and_registration.sql',
   '202610290004_critical_application_event_integrity.sql',
   '202610290006_high_priority_release_integrity.sql',
+  '202611040001_content_publication_readiness.sql',
 ];
 const failures=[];
 for(const file of requiredRoutes){try{await access(resolve(root,file))}catch{failures.push(`Missing critical route: ${file}`)}}

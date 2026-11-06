@@ -25,7 +25,7 @@ export default function CourseDetail(){
   useEffect(()=>{let active=true;if(!previewId)return()=>{active=false};void loadContentItem(previewId).then(result=>{if(active)setPreviewRecord({id:previewId,item:result.error?null:result.data})});return()=>{active=false};},[previewId]);
   const previewItem=previewId&&previewRecord?.id===previewId?previewRecord.item:null;
   const previewLoading=Boolean(previewId&&previewRecord?.id!==previewId);
-  const course=useMemo(()=>previewId&&previewItem?courseFromContent(previewItem,courseState.catalog[id]):courseState.catalog[id]??null,[courseState.catalog,id,previewId,previewItem]);
+  const course=useMemo(()=>previewId&&previewItem?courseFromContent(previewItem):courseState.catalog[id]??null,[courseState.catalog,id,previewId,previewItem]);
   const{user,membership}=useAuth();
   const[tab,setTab]=useState<CourseTab>('Overview');
   const[progress,setProgress]=useState<CourseProgress|null>(null);

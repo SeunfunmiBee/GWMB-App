@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
+import { AppStateView } from '@/components/states/AppStateView';
 import {
  formatSessionDate, type MentorshipSession 
 } from '@/data/mentorship';
@@ -38,8 +39,10 @@ user,membership
   const[preferences,setPreferences]=useState<NotificationPreferences|null>(null);
   const[busy,setBusy]=useState(false);
   const[answer,setAnswer]=useState<string|null>(null);
+  const[loading,setLoading]=useState(true);
+  const[loadError,setLoadError]=useState<string|null>(null);
 
-  useFocusEffect(useCallback(()=>{let active=true;Promise.all([
+  useFocusEffect(useCallback(()=>{let active=true;setLoading(true);Promise.all([
     loadMentorshipSession(id),
     user?loadMentorshipRegistrations(user.id):Promise.resolve({
 registrations:[],
@@ -49,10 +52,12 @@ cloud:false
 preferences:defaultNotificationPreferences('guest'),
 error:null
 }),
-  ]).then(([s,r,p])=>{if(active){setSession(s.session);setRegistration(r.registrations.find(item=>item.session_id===id&&item.status!=='cancelled')??null);setPreferences(p.preferences)}});return()=>{active=false}},[id,user]));
+  ]).then(([s,r,p])=>{if(active){setSession(s.session);setRegistration(r.registrations.find(item=>item.session_id===id&&item.status!=='cancelled')??null);setPreferences(p.preferences);setLoadError(s.error?.message??null);setLoading(false)}});return()=>{active=false}},[id,user]));
 
   const live=useMemo(()=>{if(!session)return false;const start=new Date(session.starts_at).getTime();return session.status==='live'||(start<=detailLoadedAt&&start+TWO_HOURS>=detailLoadedAt)},[session]);
-  if(!session)return <Screen><PageHeader title="Mentorship session"/><View style={styles.loading}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;
+  if(loading)return <Screen><PageHeader title="Mentorship session"/><View style={styles.loading}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;
+  if(loadError)return <Screen><PageHeader title="Mentorship session"/><AppStateView kind="error" title="Session could not load" copy={loadError}/></Screen>;
+  if(!session)return <Screen><PageHeader title="Mentorship session"/><AppStateView kind="no-results" eyebrow="SESSION UNAVAILABLE" title="This mentorship session is no longer available." copy="It may have been unpublished or the link may be incorrect."/></Screen>;
 
   const verified=membership?.status==='verified';
   const locked=session.access_level==='members'&&!verified;

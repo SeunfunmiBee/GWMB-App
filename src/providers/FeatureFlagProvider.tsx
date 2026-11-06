@@ -33,20 +33,26 @@ export function FeatureFlagProvider({ children }: PropsWithChildren) {
       setLoading(true);
       setFlags(defaults);
       setIsBetaTester(false);
-      const [flagResult, betaResult] = await Promise.all([
-        supabase.from('feature_flags').select('key,enabled,beta_only'),
-        user ? supabase.from('beta_testers').select('active').eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-      ]);
-      if (!active) return;
-      if (!flagResult.error) {
-        const next = { ...defaults };
-        for (const flag of flagResult.data ?? []) {
-          if (flag.key in next) next[flag.key as LaunchFeatureKey] = flag as RuntimeFlag;
+      if(!user){setLoading(false);return;}
+      try {
+        const [flagResult, betaResult] = await Promise.all([
+          supabase.from('feature_flags').select('key,enabled,beta_only'),
+          supabase.from('beta_testers').select('active').eq('user_id', user.id).maybeSingle(),
+        ]);
+        if (!active) return;
+        if (!flagResult.error) {
+          const next = { ...defaults };
+          for (const flag of flagResult.data ?? []) {
+            if (flag.key in next) next[flag.key as LaunchFeatureKey] = flag as RuntimeFlag;
+          }
+          setFlags(next);
         }
-        setFlags(next);
+        setIsBetaTester(betaResult.data?.active === true);
+      } catch {
+        // Keep safe defaults when launch controls cannot be refreshed.
+      } finally {
+        if(active)setLoading(false);
       }
-      setIsBetaTester(betaResult.data?.active === true);
-      setLoading(false);
     }
     void load();
     return () => { active = false; };

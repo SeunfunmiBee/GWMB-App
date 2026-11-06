@@ -23,10 +23,6 @@ import {
   type SecureAdvancedOffer,
 } from "@/lib/advanced-program";
 import {
-  getEducationPlaceholder,
-  type EducationKind,
-} from "@/lib/admin-education";
-import {
   createGoogleMeet,
   loadContentItem,
   pickAndUploadContentFile,
@@ -38,6 +34,8 @@ import {
   type ContentUploadController,
 } from "@/lib/admin-content";
 import { colors, fonts } from "@/theme";
+
+type EducationKind = "course" | "event" | "resource";
 
 type Lesson = {
   id: string;
@@ -82,6 +80,8 @@ type BuilderMeta = {
   resources?: string[];
   advanced_program?: AdvancedProgramMeta;
   program?: string;
+  clique_id?: string;
+  industry?: string;
   format?: string;
   venue?: string;
   capacity?: string;
@@ -323,22 +323,6 @@ export default function EducationBuilder() {
   ) as EducationKind;
   const initial = () => {
     const base = blank(type);
-    const source = params.source
-      ? getEducationPlaceholder(type, params.source)
-      : undefined;
-    if (source)
-      return {
-        draft: {
-          ...base,
-          slug: source.id,
-          title: source.title,
-          eyebrow: source.eyebrow,
-          summary: source.summary,
-          access_level: source.access,
-          starts_at: source.startsAt ?? null,
-        } as ContentDraft,
-        meta: source.metadata as BuilderMeta,
-      };
     const metadata = base.metadata as BuilderMeta;
     return {
       draft: base,
@@ -351,6 +335,9 @@ export default function EducationBuilder() {
   const [initialState] = useState(initial);
   const [draft, setDraft] = useState<ContentDraft>(initialState.draft);
   const [meta, setMeta] = useState<BuilderMeta>(initialState.meta);
+  const [originalStatus, setOriginalStatus] = useState<ContentStatus | null>(
+    null,
+  );
   const [secureOffer, setSecureOffer] = useState<SecureAdvancedOffer>({
     benefitCode: "",
     maxClaims: "",
@@ -366,6 +353,7 @@ export default function EducationBuilder() {
         if (data) {
           setDraft(data);
           setMeta(data.metadata as BuilderMeta);
+          setOriginalStatus(data.status);
           if (type === "course") {
             const offerResult = await loadAdminAdvancedOffer(data.id);
             if (offerResult.offer) setSecureOffer(offerResult.offer);
@@ -424,26 +412,35 @@ export default function EducationBuilder() {
   }
   async function save() {
     if (!draft.title.trim()) return Alert.alert("Add a title");
-    if (type === "course" && !meta.lessons?.length)
+    const publishing = ["published", "scheduled"].includes(draft.status);
+    const editingExistingLiveRecord =
+      Boolean(draft.id) &&
+      originalStatus !== null &&
+      ["published", "scheduled"].includes(originalStatus);
+    const requireCompletePublication = publishing && !editingExistingLiveRecord;
+    if (requireCompletePublication && type === "course" && !meta.lessons?.length)
       return Alert.alert("Add at least one lesson");
     if (
+      requireCompletePublication &&
       type === "course" &&
       meta.advanced_program?.enabled &&
       !meta.advanced_program.programme_url &&
       !meta.advanced_program.application_url
     )
       return Alert.alert("Add the advanced programme or application link");
-    if (type === "event" && !draft.starts_at)
+    if (requireCompletePublication && type === "event" && !draft.starts_at)
       return Alert.alert("Add the event start date and time");
-    if (type === "resource" && !meta.url)
+    if (requireCompletePublication && type === "resource" && !meta.url)
       return Alert.alert("Add a resource link or upload a file");
     const slug = draft.slug || slugify(draft.title);
     const route =
       draft.route ||
       `/${type === "course" ? "course" : type === "event" ? "event" : "resource"}/${slug}`;
     const readyDraft = { ...draft, slug, route };
+    // The database compares old and new issue codes for legacy live records. That
+    // permits incremental repairs while still rejecting any newly introduced gap.
     const issues = publicationIssues(type, readyDraft, meta);
-    if (issues.length)
+    if (requireCompletePublication && issues.length)
       return Alert.alert(
         "Complete before publishing",
         issues.map((issue) => `• ${issue}`).join("\n"),
@@ -480,6 +477,7 @@ export default function EducationBuilder() {
     else if (type === "course" && result.data) {
       setDraft(result.data as ContentDraft);
       setMeta((result.data.metadata ?? meta) as BuilderMeta);
+      setOriginalStatus(result.data.status as ContentStatus);
       Alert.alert(
         "Course saved",
         "The course and its advanced partner pathway are ready to preview. Published courses appear in Learn automatically.",
@@ -1232,6 +1230,9 @@ function EventFields({
     bio: "",
     image_url: "",
   };
+  const cliqueProgramme = ["clique-fireside", "sister-circle"].includes(
+    meta.program ?? "",
+  );
   return (
     <View>
       <Section
@@ -1244,6 +1245,22 @@ function EventFields({
         selected={meta.program ?? "live-session"}
         onSelect={(program) => setMeta({ ...meta, program })}
       />
+      {cliqueProgramme ? (
+        <View>
+          <Field
+            label="CLIQUE ID (OPTIONAL)"
+            value={meta.clique_id ?? ""}
+            onChange={(clique_id) => setMeta({ ...meta, clique_id })}
+            placeholder="girls-in-tech"
+          />
+          <Field
+            label="INDUSTRY OR CIRCLE"
+            value={meta.industry ?? ""}
+            onChange={(industry) => setMeta({ ...meta, industry })}
+            placeholder="Technology, Marketing, Finance..."
+          />
+        </View>
+      ) : null}
       <Choice
         label="FORMAT"
         values={["online", "physical", "hybrid"]}

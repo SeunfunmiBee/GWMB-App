@@ -47,76 +47,6 @@ export type InterviewQuestion = {
   careerAreas?: string[];
 };
 
-export const interviewQuestions: InterviewQuestion[] = [
-  {
-    id: "tell-me-about-yourself",
-    category: "General Interview Questions",
-    question: "Tell me about yourself.",
-    guidance:
-      "Connect where you are now, the evidence that supports your direction and why this opportunity is the logical next step.",
-    framework: "Present → Past → Future",
-  },
-  {
-    id: "why-this-role",
-    category: "Career Motivation & Goals",
-    question: "Why are you interested in this role?",
-    guidance:
-      "Show that you understand the work, connect it to your strengths and explain the contribution you hope to make.",
-  },
-  {
-    id: "challenge-overcame",
-    category: "Behavioural Questions",
-    question: "Tell me about a challenge you overcame.",
-    guidance:
-      "Choose a real example and make your actions and the result specific.",
-    framework: "STAR · Situation → Task → Action → Result",
-  },
-  {
-    id: "worked-in-team",
-    category: "Behavioural Questions",
-    question: "Describe a time you worked in a team.",
-    guidance:
-      "Explain your personal contribution, how you worked with others and what the team achieved.",
-    framework: "STAR · Situation → Task → Action → Result",
-  },
-  {
-    id: "strengths-weaknesses",
-    category: "General Interview Questions",
-    question: "What are your strengths and weaknesses?",
-    guidance:
-      "Support your strength with evidence. Choose an honest development area and show what you are doing about it.",
-  },
-  {
-    id: "why-hire-you",
-    category: "Internship & Graduate Interviews",
-    question: "Why should we hire you?",
-    guidance:
-      "Match two or three relevant strengths to what the role needs. Use evidence from projects, volunteering, school or work.",
-  },
-  {
-    id: "limited-experience",
-    category: "Internship & Graduate Interviews",
-    question: "You have limited experience. What can you bring to this role?",
-    guidance:
-      "Translate projects, volunteering, leadership and coursework into evidence of useful skills and learning speed.",
-  },
-  {
-    id: "workplace-conflict",
-    category: "Workplace Scenarios",
-    question: "How would you handle a disagreement with a teammate?",
-    guidance:
-      "Demonstrate calm communication, curiosity, shared goals and an appropriate path to resolution.",
-  },
-  {
-    id: "product-priorities",
-    category: "Role-Specific Questions",
-    question: "How would you decide what a product team should build next?",
-    guidance:
-      "Show how you balance user evidence, business goals, feasibility and expected impact.",
-    careerAreas: ["Product", "Product Management"],
-  },
-];
-
 export async function loadInterviewQuestions() {
   const { data, error } = await supabase
     .from("career_practice_questions")
@@ -124,17 +54,14 @@ export async function loadInterviewQuestions() {
     .eq("active", true)
     .order("sort_order");
   return {
-    questions:
-      error || !data?.length
-        ? interviewQuestions
-        : (data.map((item) => ({
-            id: item.id,
-            category: item.category,
-            question: item.question,
-            guidance: item.guidance,
-            framework: item.framework ?? undefined,
-            careerAreas: item.career_areas ?? [],
-          })) as InterviewQuestion[]),
+    questions: (data ?? []).map((item) => ({
+      id: item.id,
+      category: item.category,
+      question: item.question,
+      guidance: item.guidance,
+      framework: item.framework ?? undefined,
+      careerAreas: item.career_areas ?? [],
+    })) as InterviewQuestion[],
     error,
   };
 }

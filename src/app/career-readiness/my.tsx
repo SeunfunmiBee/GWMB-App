@@ -1,18 +1,465 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { PageHeader } from '@/components/PageHeader';
-import { Screen } from '@/components/Screen';
-import { interviewQuestions, loadCareerInventory, loadPracticeResponses, loadReviewSubmissions, loadSavedCareerResources, type CareerReviewSubmission, type PracticeResponse } from '@/lib/career-readiness';
-import { loadEventRegistrations, type EventRegistration } from '@/lib/event-store';
-import { useAuth } from '@/providers/AuthProvider';
-import { colors, fonts } from '@/theme';
-import { ScreenSkeleton } from '@/components/states/Skeleton';
-const labels:Record<string,string>={submitted:'Submitted',under_review:'Under review',selected:'Selected for live clinic',reviewed:'Reviewed',not_selected:'Not selected for this session'};
-export default function MyCareerReadiness(){const router=useRouter();const{user}=useAuth();const[loading,setLoading]=useState(Boolean(user));const[events,setEvents]=useState<Awaited<ReturnType<typeof loadCareerInventory>>['upcoming']>([]);const[registrations,setRegistrations]=useState<EventRegistration[]>([]);const[reviews,setReviews]=useState<CareerReviewSubmission[]>([]);const[responses,setResponses]=useState<PracticeResponse[]>([]);const[saved,setSaved]=useState<Awaited<ReturnType<typeof loadCareerInventory>>['resources']>([]);useEffect(()=>{if(!user?.id)return;void Promise.all([loadCareerInventory(),loadEventRegistrations(user.id),loadReviewSubmissions(user.id),loadPracticeResponses(user.id),loadSavedCareerResources(user.id)]).then(([inventory,registrationResult,reviewResult,responseResult,savedResult])=>{setEvents(inventory.upcoming);setRegistrations(registrationResult.registrations);setReviews(reviewResult.submissions);setResponses(responseResult.responses);setSaved(inventory.resources.filter(item=>savedResult.ids.includes(item.id)));setLoading(false)})},[user?.id]);if(loading)return <Screen><PageHeader title="My Career Readiness"/><ScreenSkeleton rows={5}/></Screen>;if(!user)return <Screen><PageHeader title="My Career Readiness"/><View style={styles.empty}><Text style={styles.emptyTitle}>Sign in to see your activity</Text><Pressable onPress={()=>router.push('/sign-in')} style={styles.button}><Text style={styles.buttonText}>Sign in</Text></Pressable></View></Screen>;const registered=new Set(registrations.filter(item=>item.status!=='cancelled').map(item=>item.event_id));const myEvents=events.filter(item=>registered.has(item.id));return <Screen><PageHeader title="My Career Readiness" eyebrow="Learn"/><View style={styles.hero}><Text style={styles.heroKicker}>YOUR WORK, IN ONE PLACE</Text><Text style={styles.heroTitle}>Keep moving toward the opportunity.</Text><View style={styles.stats}><Stat value={myEvents.length} label="SESSIONS"/><Stat value={reviews.length} label="REVIEWS"/><Stat value={responses.length} label="ANSWERS"/><Stat value={saved.length} label="SAVED"/></View></View><Section title="My Upcoming Sessions" icon="calendar-outline" action="Browse sessions" onAction={()=>router.push('/career-readiness' as never)}>{myEvents.length?myEvents.map(item=><Card key={item.id} title={item.title} meta={new Date(item.starts_at!).toLocaleString('en-NG',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})} badge="REGISTERED"/>):<Empty copy="Sessions you save will appear here with their dates and reminders."/>}</Section><Section title="My Review Submissions" icon="document-text-outline" action="Submit material" onAction={()=>router.push('/career-readiness/review' as never)}>{reviews.length?reviews.map(item=><View key={item.id} style={styles.card}><View style={{flex:1}}><Text style={styles.cardTitle}>{item.review_type.replaceAll('_',' ').replace(/\b\w/g,char=>char.toUpperCase())}</Text><Text style={styles.cardMeta}>{new Date(item.created_at).toLocaleDateString('en-NG',{day:'numeric',month:'short',year:'numeric'})}</Text>{item.admin_feedback?<View style={styles.feedback}><Text style={styles.feedbackLabel}>FEEDBACK</Text><Text style={styles.feedbackText}>{item.admin_feedback}</Text></View>:null}</View><Text style={[styles.badge,item.status==='selected'&&styles.badgeSelected,item.status==='reviewed'&&styles.badgeDone]}>{labels[item.status]}</Text></View>):<Empty copy="Submit a CV, LinkedIn profile or application for professional feedback."/>}</Section><Section title="My Interview Practice" icon="chatbubbles-outline" action="Keep practising" onAction={()=>router.push('/career-readiness/practice' as never)}>{responses.length?responses.map(item=>{const question=interviewQuestions.find(value=>value.id===item.question_id);return <Pressable key={item.id} onPress={()=>router.push(`/career-readiness/practice?question=${item.question_id}` as never)} style={styles.card}><View style={{flex:1}}><Text style={styles.cardTitle}>{question?.question??'Saved interview response'}</Text><Text numberOfLines={2} style={styles.cardMeta}>{item.response_text}</Text></View><Ionicons name="create-outline" size={18} color={colors.ink}/></Pressable>}):<Empty copy="Saved interview responses stay here so you can keep refining them."/>}</Section><Section title="My Saved Resources" icon="bookmark-outline">{saved.length?saved.map(item=><Card key={item.id} title={item.title} meta={item.summary||'Career resource'} badge="SAVED"/>):<Empty copy="Bookmark published templates, guides and checklists from Career Readiness."/>}</Section></Screen>}
-function Stat({value,label}:{value:number;label:string}){return <View style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>}
-function Section({title,icon,action,onAction,children}:{title:string;icon:keyof typeof Ionicons.glyphMap;action?:string;onAction?:()=>void;children:React.ReactNode}){return <View style={styles.section}><View style={styles.sectionHead}><View style={styles.sectionIcon}><Ionicons name={icon} size={19} color={colors.pinkDeep}/></View><Text style={styles.sectionTitle}>{title}</Text>{action?<Pressable onPress={onAction}><Text style={styles.action}>{action}</Text></Pressable>:null}</View><View style={styles.list}>{children}</View></View>}
-function Card({title,meta,badge}:{title:string;meta:string;badge:string}){return <View style={styles.card}><View style={{flex:1}}><Text style={styles.cardTitle}>{title}</Text><Text style={styles.cardMeta}>{meta}</Text></View><Text style={styles.badge}>{badge}</Text></View>}
-function Empty({copy}:{copy:string}){return <View style={styles.emptyRow}><Ionicons name="add-circle-outline" size={21} color={colors.muted}/><Text style={styles.emptyCopy}>{copy}</Text></View>}
-const styles=StyleSheet.create({hero:{borderRadius:27,backgroundColor:'#171218',padding:21,marginBottom:22},heroKicker:{fontFamily:fonts.bodyBold,fontSize:8,letterSpacing:1.2,color:'#F0A7C8'},heroTitle:{fontFamily:fonts.heading,fontSize:26,lineHeight:31,color:'white',marginTop:8},stats:{flexDirection:'row',marginTop:22},stat:{flex:1},statValue:{fontFamily:fonts.heading,fontSize:23,color:'white'},statLabel:{fontFamily:fonts.bodyBold,fontSize:6.5,letterSpacing:.7,color:'#CFC5CB',marginTop:2},section:{marginBottom:25},sectionHead:{flexDirection:'row',alignItems:'center',marginBottom:10},sectionIcon:{width:38,height:38,borderRadius:12,backgroundColor:colors.pinkSoft,alignItems:'center',justifyContent:'center'},sectionTitle:{flex:1,fontFamily:fonts.heading,fontSize:18,color:colors.ink,marginLeft:10},action:{fontFamily:fonts.bodyBold,fontSize:8,color:colors.pinkDeep},list:{gap:8},card:{minHeight:78,borderRadius:18,borderWidth:1,borderColor:'#DED8DC',backgroundColor:'white',padding:13,flexDirection:'row',alignItems:'flex-start',gap:10},cardTitle:{fontFamily:fonts.headingBold,fontSize:11.5,lineHeight:15,color:colors.ink},cardMeta:{fontFamily:fonts.body,fontSize:8.5,lineHeight:13,color:colors.muted,marginTop:4},badge:{fontFamily:fonts.bodyBold,fontSize:6.8,color:colors.pinkDeep,backgroundColor:colors.pinkSoft,paddingHorizontal:8,paddingVertical:5,borderRadius:9,textTransform:'uppercase',maxWidth:108,textAlign:'center'},badgeSelected:{backgroundColor:'#FFF0D5',color:'#8A5700'},badgeDone:{backgroundColor:'#E2F5EE',color:'#087553'},feedback:{borderRadius:12,backgroundColor:'#F5F2F4',padding:10,marginTop:10},feedbackLabel:{fontFamily:fonts.bodyBold,fontSize:6.5,letterSpacing:.7,color:colors.pinkDeep},feedbackText:{fontFamily:fonts.bodyMedium,fontSize:9,lineHeight:14,color:colors.ink,marginTop:4},emptyRow:{minHeight:76,borderRadius:18,borderWidth:1,borderStyle:'dashed',borderColor:'#D7D0D4',backgroundColor:'#FAF8F9',padding:14,flexDirection:'row',alignItems:'center',gap:10},emptyCopy:{flex:1,fontFamily:fonts.body,fontSize:9,lineHeight:14,color:colors.muted},empty:{borderRadius:24,backgroundColor:'white',borderWidth:1,borderColor:'#DED8DC',padding:22,alignItems:'center'},emptyTitle:{fontFamily:fonts.heading,fontSize:20,color:colors.ink},button:{height:47,borderRadius:15,backgroundColor:colors.ink,paddingHorizontal:28,justifyContent:'center',marginTop:15},buttonText:{fontFamily:fonts.bodyBold,fontSize:10,color:'white'}});
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { PageHeader } from "@/components/PageHeader";
+import { Screen } from "@/components/Screen";
+import { AppStateView } from "@/components/states/AppStateView";
+import {
+  loadCareerInventory,
+  loadInterviewQuestions,
+  loadPracticeResponses,
+  loadReviewSubmissions,
+  loadSavedCareerResources,
+  type CareerReviewSubmission,
+  type InterviewQuestion,
+  type PracticeResponse,
+} from "@/lib/career-readiness";
+import {
+  loadEventRegistrations,
+  type EventRegistration,
+} from "@/lib/event-store";
+import { useAuth } from "@/providers/AuthProvider";
+import { colors, fonts } from "@/theme";
+import { ScreenSkeleton } from "@/components/states/Skeleton";
+const labels: Record<string, string> = {
+  submitted: "Submitted",
+  under_review: "Under review",
+  selected: "Selected for live clinic",
+  reviewed: "Reviewed",
+  not_selected: "Not selected for this session",
+};
+export default function MyCareerReadiness() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(Boolean(user));
+  const [events, setEvents] = useState<
+    Awaited<ReturnType<typeof loadCareerInventory>>["upcoming"]
+  >([]);
+  const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
+  const [reviews, setReviews] = useState<CareerReviewSubmission[]>([]);
+  const [responses, setResponses] = useState<PracticeResponse[]>([]);
+  const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<
+    Awaited<ReturnType<typeof loadCareerInventory>>["resources"]
+  >([]);
+  useEffect(() => {
+    if (!user?.id) return;
+    void Promise.all([
+      loadCareerInventory(),
+      loadEventRegistrations(user.id),
+      loadReviewSubmissions(user.id),
+      loadPracticeResponses(user.id),
+      loadSavedCareerResources(user.id),
+      loadInterviewQuestions(),
+    ]).then(
+      ([
+        inventory,
+        registrationResult,
+        reviewResult,
+        responseResult,
+        savedResult,
+        questionResult,
+      ]) => {
+        setEvents(inventory.upcoming);
+        setRegistrations(registrationResult.registrations);
+        setReviews(reviewResult.submissions);
+        setResponses(responseResult.responses);
+        setQuestions(questionResult.questions);
+        setQuestionsError(questionResult.error?.message ?? null);
+        setSaved(
+          inventory.resources.filter((item) =>
+            savedResult.ids.includes(item.id),
+          ),
+        );
+        setLoading(false);
+      },
+    );
+  }, [user?.id]);
+  if (loading)
+    return (
+      <Screen>
+        <PageHeader title="My Career Readiness" />
+        <ScreenSkeleton rows={5} />
+      </Screen>
+    );
+  if (!user)
+    return (
+      <Screen>
+        <PageHeader title="My Career Readiness" />
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>Sign in to see your activity</Text>
+          <Pressable
+            onPress={() => router.push("/sign-in")}
+            style={styles.button}
+          >
+            <Text style={styles.buttonText}>Sign in</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  const registered = new Set(
+    registrations
+      .filter((item) => item.status !== "cancelled")
+      .map((item) => item.event_id),
+  );
+  const myEvents = events.filter((item) => registered.has(item.id));
+  return (
+    <Screen>
+      <PageHeader title="My Career Readiness" eyebrow="Learn" />
+      <View style={styles.hero}>
+        <Text style={styles.heroKicker}>YOUR WORK, IN ONE PLACE</Text>
+        <Text style={styles.heroTitle}>
+          Keep moving toward the opportunity.
+        </Text>
+        <View style={styles.stats}>
+          <Stat value={myEvents.length} label="SESSIONS" />
+          <Stat value={reviews.length} label="REVIEWS" />
+          <Stat value={responses.length} label="ANSWERS" />
+          <Stat value={saved.length} label="SAVED" />
+        </View>
+      </View>
+      <Section
+        title="My Upcoming Sessions"
+        icon="calendar-outline"
+        action="Browse sessions"
+        onAction={() => router.push("/career-readiness" as never)}
+      >
+        {myEvents.length ? (
+          myEvents.map((item) => (
+            <Card
+              key={item.id}
+              title={item.title}
+              meta={new Date(item.starts_at!).toLocaleString("en-NG", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+              badge="REGISTERED"
+            />
+          ))
+        ) : (
+          <Empty copy="Sessions you save will appear here with their dates and reminders." />
+        )}
+      </Section>
+      <Section
+        title="My Review Submissions"
+        icon="document-text-outline"
+        action="Submit material"
+        onAction={() => router.push("/career-readiness/review" as never)}
+      >
+        {reviews.length ? (
+          reviews.map((item) => (
+            <View key={item.id} style={styles.card}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {item.review_type
+                    .replaceAll("_", " ")
+                    .replace(/\b\w/g, (char) => char.toUpperCase())}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  {new Date(item.created_at).toLocaleDateString("en-NG", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </Text>
+                {item.admin_feedback ? (
+                  <View style={styles.feedback}>
+                    <Text style={styles.feedbackLabel}>FEEDBACK</Text>
+                    <Text style={styles.feedbackText}>
+                      {item.admin_feedback}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text
+                style={[
+                  styles.badge,
+                  item.status === "selected" && styles.badgeSelected,
+                  item.status === "reviewed" && styles.badgeDone,
+                ]}
+              >
+                {labels[item.status]}
+              </Text>
+            </View>
+          ))
+        ) : (
+          <Empty copy="Submit a CV, LinkedIn profile or application for professional feedback." />
+        )}
+      </Section>
+      <Section
+        title="My Interview Practice"
+        icon="chatbubbles-outline"
+        action="Keep practising"
+        onAction={() => router.push("/career-readiness/practice" as never)}
+      >
+        {questionsError ? (
+          <AppStateView
+            kind="error"
+            compact
+            title="Published questions could not load"
+            copy={questionsError}
+          />
+        ) : null}
+        {responses.length ? (
+          responses.map((item) => {
+            const question = questions.find(
+              (value) => value.id === item.question_id,
+            );
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push(
+                    `/career-readiness/practice?question=${item.question_id}` as never,
+                  )
+                }
+                style={styles.card}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>
+                    {question?.question ??
+                      "Saved response · question no longer published"}
+                  </Text>
+                  <Text numberOfLines={2} style={styles.cardMeta}>
+                    {item.response_text}
+                  </Text>
+                </View>
+                <Ionicons name="create-outline" size={18} color={colors.ink} />
+              </Pressable>
+            );
+          })
+        ) : !questionsError ? (
+          <Empty copy="Saved interview responses stay here so you can keep refining them." />
+        ) : null}
+      </Section>
+      <Section title="My Saved Resources" icon="bookmark-outline">
+        {saved.length ? (
+          saved.map((item) => (
+            <Card
+              key={item.id}
+              title={item.title}
+              meta={item.summary || "Career resource"}
+              badge="SAVED"
+            />
+          ))
+        ) : (
+          <Empty copy="Bookmark published templates, guides and checklists from Career Readiness." />
+        )}
+      </Section>
+    </Screen>
+  );
+}
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+function Section({
+  title,
+  icon,
+  action,
+  onAction,
+  children,
+}: {
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  action?: string;
+  onAction?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <View style={styles.sectionIcon}>
+          <Ionicons name={icon} size={19} color={colors.pinkDeep} />
+        </View>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {action ? (
+          <Pressable onPress={onAction}>
+            <Text style={styles.action}>{action}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.list}>{children}</View>
+    </View>
+  );
+}
+function Card({
+  title,
+  meta,
+  badge,
+}: {
+  title: string;
+  meta: string;
+  badge: string;
+}) {
+  return (
+    <View style={styles.card}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardMeta}>{meta}</Text>
+      </View>
+      <Text style={styles.badge}>{badge}</Text>
+    </View>
+  );
+}
+function Empty({ copy }: { copy: string }) {
+  return (
+    <View style={styles.emptyRow}>
+      <Ionicons name="add-circle-outline" size={21} color={colors.muted} />
+      <Text style={styles.emptyCopy}>{copy}</Text>
+    </View>
+  );
+}
+const styles = StyleSheet.create({
+  hero: {
+    borderRadius: 27,
+    backgroundColor: "#171218",
+    padding: 21,
+    marginBottom: 22,
+  },
+  heroKicker: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 8,
+    letterSpacing: 1.2,
+    color: "#F0A7C8",
+  },
+  heroTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 26,
+    lineHeight: 31,
+    color: "white",
+    marginTop: 8,
+  },
+  stats: { flexDirection: "row", marginTop: 22 },
+  stat: { flex: 1 },
+  statValue: { fontFamily: fonts.heading, fontSize: 23, color: "white" },
+  statLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 6.5,
+    letterSpacing: 0.7,
+    color: "#CFC5CB",
+    marginTop: 2,
+  },
+  section: { marginBottom: 25 },
+  sectionHead: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  sectionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.pinkSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionTitle: {
+    flex: 1,
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    color: colors.ink,
+    marginLeft: 10,
+  },
+  action: { fontFamily: fonts.bodyBold, fontSize: 8, color: colors.pinkDeep },
+  list: { gap: 8 },
+  card: {
+    minHeight: 78,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#DED8DC",
+    backgroundColor: "white",
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  cardTitle: {
+    fontFamily: fonts.headingBold,
+    fontSize: 11.5,
+    lineHeight: 15,
+    color: colors.ink,
+  },
+  cardMeta: {
+    fontFamily: fonts.body,
+    fontSize: 8.5,
+    lineHeight: 13,
+    color: colors.muted,
+    marginTop: 4,
+  },
+  badge: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 6.8,
+    color: colors.pinkDeep,
+    backgroundColor: colors.pinkSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 9,
+    textTransform: "uppercase",
+    maxWidth: 108,
+    textAlign: "center",
+  },
+  badgeSelected: { backgroundColor: "#FFF0D5", color: "#8A5700" },
+  badgeDone: { backgroundColor: "#E2F5EE", color: "#087553" },
+  feedback: {
+    borderRadius: 12,
+    backgroundColor: "#F5F2F4",
+    padding: 10,
+    marginTop: 10,
+  },
+  feedbackLabel: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 6.5,
+    letterSpacing: 0.7,
+    color: colors.pinkDeep,
+  },
+  feedbackText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 9,
+    lineHeight: 14,
+    color: colors.ink,
+    marginTop: 4,
+  },
+  emptyRow: {
+    minHeight: 76,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#D7D0D4",
+    backgroundColor: "#FAF8F9",
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  emptyCopy: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 9,
+    lineHeight: 14,
+    color: colors.muted,
+  },
+  empty: {
+    borderRadius: 24,
+    backgroundColor: "white",
+    borderWidth: 1,
+    borderColor: "#DED8DC",
+    padding: 22,
+    alignItems: "center",
+  },
+  emptyTitle: { fontFamily: fonts.heading, fontSize: 20, color: colors.ink },
+  button: {
+    height: 47,
+    borderRadius: 15,
+    backgroundColor: colors.ink,
+    paddingHorizontal: 28,
+    justifyContent: "center",
+    marginTop: 15,
+  },
+  buttonText: { fontFamily: fonts.bodyBold, fontSize: 10, color: "white" },
+});

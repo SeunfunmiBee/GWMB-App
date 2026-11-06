@@ -1,39 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router as expoRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
+import { AppStateView } from '@/components/states/AppStateView';
 import { FadeIn } from '@/components/motion/FadeIn';
 import { SpringPressable } from '@/components/motion/SpringPressable';
 import { tapFeedback } from '@/lib/feedback';
+import { usePublishedContentState } from '@/lib/content-runtime';
 import { colors, fonts } from '@/theme';
 
 const router = { push: (href: string) => expoRouter.push(href as never) };
 
-const moreWins = [
-  {
-    title: 'A fellowship worth celebrating',
-    category: 'FELLOWSHIPS',
-    image: require('../../assets/media/community/member-02.png'),
-    tint: '#EEE6E9',
-  },
-  {
-    title: 'From classroom to first role',
-    category: 'CAREER FIRSTS',
-    image: require('../../assets/media/community/member-04.png'),
-    tint: '#FCEBF3',
-  },
-  {
-    title: 'A bold business milestone',
-    category: 'ENTREPRENEURSHIP',
-    image: require('../../assets/media/community/member-08.png'),
-    tint: '#EFEFFD',
-  },
-] as const;
-
 export default function MemberWinsScreen() {
+  const content=usePublishedContentState('member-wins');
+  const spotlights=useMemo(()=>content.items.filter(item=>item.visible),[content.items]);
+  const featured=spotlights[0]??null;
+  const moreSpotlights=spotlights.slice(1);
   const winsScroller = useRef<ScrollView>(null);
   const winsPosition = useRef(0);
   const winsPausedUntil = useRef(0);
@@ -41,11 +26,22 @@ export default function MemberWinsScreen() {
   useEffect(() => {
     const timer = setInterval(() => {
       if (Date.now() < winsPausedUntil.current) return;
-      winsPosition.current = (winsPosition.current + 1) % moreWins.length;
+      if(moreSpotlights.length<2)return;
+      winsPosition.current = (winsPosition.current + 1) % moreSpotlights.length;
       winsScroller.current?.scrollTo({ x: winsPosition.current * 224, animated: winsPosition.current !== 0 });
     }, 3600);
     return () => clearInterval(timer);
-  }, []);
+  }, [moreSpotlights.length]);
+
+  if(content.loading)return <Screen><PageHeader title="Member Spotlights" eyebrow="GWMB Girls Making Moves"/><View style={styles.loading}><ActivityIndicator color={colors.pinkDeep}/></View></Screen>;
+  if(content.error)return <Screen><PageHeader title="Member Spotlights" eyebrow="GWMB Girls Making Moves"/><AppStateView kind="error" title="Spotlights could not load" copy={content.error.message} actionLabel="Try again" onAction={()=>void content.refresh()}/></Screen>;
+  if(!featured)return <Screen><PageHeader title="Member Spotlights" eyebrow="GWMB Girls Making Moves"/><AppStateView kind="empty" eyebrow="MEMBER SPOTLIGHTS" title="No spotlights published yet" copy="New member stories will appear here when Admin publishes them."/></Screen>;
+  const metadata=featured.metadata??{};
+  const category=featured.eyebrow||String(metadata.winType??metadata.win_type??'MEMBER SPOTLIGHT');
+  const memberName=String(metadata.member??featured.title);
+  const lead=String(metadata.headline??'A win worth celebrating.');
+  const story=featured.body||featured.summary;
+  const quote=String(metadata.quote??'One woman’s win can show another woman what is possible.');
 
   return (
     <Screen contentContainerStyle={styles.screenContent}>
@@ -53,7 +49,7 @@ export default function MemberWinsScreen() {
 
       <FadeIn delay={50}>
         <View style={styles.hero}>
-          <Image source={require('../../assets/media/community/member-01.png')} resizeMode="cover" style={styles.heroImage} />
+          {featured.image_url?<Image source={{uri:featured.image_url}} resizeMode="cover" style={styles.heroImage} />:<View style={[styles.heroImage,styles.imagePlaceholder]}><Ionicons name="person-outline" size={64} color="white"/></View>}
           <View style={styles.heroShade} />
           <View style={styles.heroTop}>
             <View style={styles.heroBadge}>
@@ -63,29 +59,29 @@ export default function MemberWinsScreen() {
             <Text style={styles.heroIssue}>01</Text>
           </View>
           <View style={styles.heroBottom}>
-            <Text style={styles.heroCategory}>PAID INTERNSHIP</Text>
-            <Text style={styles.heroTitle}>Celebrating Matilda Yakubo</Text>
-            <Text style={styles.heroCopy}>For landing a paid internship and taking a brilliant next step in her marketplace journey.</Text>
+            <Text style={styles.heroCategory}>{category.toUpperCase()}</Text>
+            <Text style={styles.heroTitle}>{memberName}</Text>
+            <Text style={styles.heroCopy}>{featured.summary}</Text>
           </View>
         </View>
       </FadeIn>
 
       <FadeIn delay={110}>
         <View style={styles.standfirst}>
-          <Text style={styles.standfirstLead}>A win worth celebrating.</Text>
-          <Text style={styles.standfirstCopy}>Matilda’s milestone is a reminder that preparation, courage and consistent action can open meaningful doors.</Text>
+          <Text style={styles.standfirstLead}>{lead}</Text>
+          <Text style={styles.standfirstCopy}>{featured.summary}</Text>
         </View>
 
         <View style={styles.factRow}>
           <View style={styles.factCard}>
             <Ionicons name="briefcase-outline" size={21} color={colors.pinkDeep} />
             <Text style={styles.factLabel}>THE WIN</Text>
-            <Text style={styles.factValue}>Paid internship</Text>
+            <Text style={styles.factValue}>{String(metadata.winType??metadata.win_type??category)}</Text>
           </View>
           <View style={[styles.factCard, styles.factCardDark]}>
             <Ionicons name="trending-up-outline" size={21} color="white" />
             <Text style={[styles.factLabel, styles.factLabelLight]}>THE MOVE</Text>
-            <Text style={[styles.factValue, styles.factValueLight]}>Career growth</Text>
+            <Text style={[styles.factValue, styles.factValueLight]}>{String(metadata.move??metadata.category??'Member progress')}</Text>
           </View>
         </View>
       </FadeIn>
@@ -93,12 +89,11 @@ export default function MemberWinsScreen() {
       <FadeIn delay={170}>
         <View style={styles.storySection}>
           <Text style={styles.kicker}>THE STORY</Text>
-          <Text style={styles.sectionTitle}>Matilda is making moves</Text>
-          <Text style={styles.storyCopy}>Landing a paid internship is more than a new line on a CV. It is a chance to learn in a real workplace, build confidence and turn potential into experience.</Text>
-          <Text style={styles.storyCopy}>Today, we are celebrating Matilda and the exciting chapter ahead of her.</Text>
+          <Text style={styles.sectionTitle}>{memberName}</Text>
+          <Text style={styles.storyCopy}>{story}</Text>
           <View style={styles.pullQuote}>
             <View style={styles.quoteMark}><Ionicons name="sparkles" size={18} color="white" /></View>
-            <Text style={styles.pullQuoteText}>One woman’s win can show another woman what is possible.</Text>
+            <Text style={styles.pullQuoteText}>{quote}</Text>
           </View>
         </View>
       </FadeIn>
@@ -111,7 +106,7 @@ export default function MemberWinsScreen() {
           </View>
           <Text style={styles.swipe}>Swipe</Text>
         </View>
-        <ScrollView
+        {moreSpotlights.length?<ScrollView
           ref={winsScroller}
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -121,16 +116,16 @@ export default function MemberWinsScreen() {
           onScrollBeginDrag={() => { winsPausedUntil.current = Date.now() + 8000; }}
           onMomentumScrollEnd={(event) => { winsPosition.current = Math.round(event.nativeEvent.contentOffset.x / 224); }}
         >
-          {moreWins.map((win) => (
-            <View key={win.title} style={[styles.winCard, { backgroundColor: win.tint }]}>
-              <Image source={win.image} resizeMode="cover" style={styles.winImage} />
+          {moreSpotlights.map((win,index) => (
+            <View key={win.id} style={[styles.winCard, { backgroundColor: String(win.metadata.surface_color??['#EEE6E9','#FCEBF3','#EFEFFD'][index%3]) }]}>
+              {win.image_url?<Image source={{uri:win.image_url}} resizeMode="cover" style={styles.winImage} />:<View style={[styles.winImage,styles.cardPlaceholder]}><Ionicons name="person-outline" size={36} color={colors.pinkDeep}/></View>}
               <View style={styles.winCopy}>
-                <Text style={styles.winCategory}>{win.category}</Text>
+                <Text style={styles.winCategory}>{win.eyebrow||'MEMBER SPOTLIGHT'}</Text>
                 <Text style={styles.winTitle}>{win.title}</Text>
               </View>
             </View>
           ))}
-        </ScrollView>
+        </ScrollView>:<Text style={styles.noMore}>More member stories will appear here as they are published.</Text>}
       </FadeIn>
 
       <FadeIn delay={290}>
@@ -153,9 +148,12 @@ export default function MemberWinsScreen() {
 }
 
 const styles = StyleSheet.create({
+  loading:{minHeight:360,alignItems:'center',justifyContent:'center'},
   screenContent: { paddingBottom: 48 },
   hero: { height: 500, overflow: 'hidden', borderRadius: 30, backgroundColor: colors.ink },
   heroImage: { position: 'absolute', inset: 0, width: '100%', height: '100%' },
+  imagePlaceholder:{alignItems:'center',justifyContent:'center',backgroundColor:'#5A2B47'},
+  cardPlaceholder:{alignItems:'center',justifyContent:'center',backgroundColor:'#F3E9EF'},
   heroShade: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.26)' },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
   heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, borderRadius: 999, backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 9 },
@@ -185,6 +183,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 40, paddingHorizontal: 6 },
   swipe: { color: colors.muted, fontFamily: fonts.bodySemibold, fontSize: 13, paddingBottom: 4 },
   winsTrack: { gap: 12, paddingTop: 18, paddingRight: 16 },
+  noMore:{color:colors.muted,fontFamily:fonts.body,fontSize:14,lineHeight:21,marginTop:16,paddingHorizontal:6},
   winCard: { width: 212, overflow: 'hidden', borderRadius: 25 },
   winImage: { width: '100%', height: 238 },
   winCopy: { minHeight: 118, padding: 17 },

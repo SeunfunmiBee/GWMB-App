@@ -18,6 +18,14 @@ export type OpportunityApplication = {
   submission_reference?: string | null;
   pending_payload?: PendingApplicationPayload;
   applicant?: { full_name:string|null; city_club:string|null }|null;
+  opportunity?: {
+    id:string;
+    slug:string;
+    title:string;
+    eyebrow:string|null;
+    status:string;
+    metadata:Record<string,unknown>|null;
+  }|null;
 };
 
 type PendingApplicationPayload={portfolioUrl:string;motivation:string;cvRecordId?:string|null;cvSnapshot?:Record<string,unknown>|null};
@@ -145,12 +153,14 @@ export async function retryPendingOpportunityApplications(userId:string){
   return next;
 }
 
+const adminOpportunityApplicationSelect='*,applicant:profiles!opportunity_applications_profile_fkey(full_name,city_club),opportunity:content_items!opportunity_applications_opportunity_content_id_fkey(id,slug,title,eyebrow,status,metadata)';
+
 export async function loadAdminOpportunityApplications(){
-  const{data,error}=await supabase.from('opportunity_applications').select('*,applicant:profiles!opportunity_applications_profile_fkey(full_name,city_club)').order('submitted_at',{ascending:false});
+  const{data,error}=await supabase.from('opportunity_applications').select(adminOpportunityApplicationSelect).order('submitted_at',{ascending:false});
   if(error)throw error;return(data??[]) as OpportunityApplication[];
 }
 
 export async function updateOpportunityApplicationStatus(id:string,status:Exclude<ApplicationStatus,'draft'|'pending_sync'>){
-  const{data,error}=await supabase.from('opportunity_applications').update({status,updated_at:new Date().toISOString()}).eq('id',id).select('*').single();
+  const{data,error}=await supabase.from('opportunity_applications').update({status,updated_at:new Date().toISOString()}).eq('id',id).select(adminOpportunityApplicationSelect).single();
   if(error)throw error;return data as OpportunityApplication;
 }

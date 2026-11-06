@@ -14,7 +14,6 @@ import { Screen } from '@/components/Screen';
 import { CelebrationBurst } from '@/components/motion/Celebration';
 import { FadeIn } from '@/components/motion/FadeIn';
 import { AppStateView } from '@/components/states/AppStateView';
-import { eventById } from '@/data/events';
 import {
  loadEventRegistration, registerForEvent, type EventRegistration
 } from '@/lib/event-store';
@@ -34,7 +33,7 @@ export default function Registration() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const content=usePublishedContentState('events');
   const cmsItem=useMemo(()=>content.items.find(candidate=>candidate.slug===id),[content.items,id]);
-  const event = useMemo(()=>cmsItem?cmsEvent(cmsItem,eventById[id]):null,[cmsItem,id]);
+  const event = useMemo(()=>cmsItem?cmsEvent(cmsItem):null,[cmsItem]);
   const registrationId=cmsItem?.id??'';
   const {
  user, profile, membership

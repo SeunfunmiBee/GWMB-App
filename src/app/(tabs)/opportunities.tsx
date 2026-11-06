@@ -7,7 +7,6 @@ import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Screen } from '@/components/Screen';
 import { DestinationHeader } from '@/components/DestinationHeader';
 import { FadeIn } from '@/components/motion/FadeIn';
-import { opportunityById } from '@/data/opportunities';
 import { tapFeedback } from '@/lib/feedback';
 import { cmsOpportunity, usePublishedContentState } from '@/lib/content-runtime';
 import { loadOpportunityApplications, loadSavedOpportunityIds, setOpportunitySaved, type ApplicationStatus, type OpportunityApplication } from '@/lib/opportunity-store';
@@ -36,7 +35,7 @@ export default function OpportunitiesScreen(){
   const slow=useSlowLoading(loading);
   const[borderPulse]=useState(()=>new Animated.Value(0));
   const content=usePublishedContentState('opportunities');
-  const liveOpportunities=useMemo(()=>content.items.map(item=>cmsOpportunity(item,opportunityById[item.slug])),[content.items]);
+  const liveOpportunities=useMemo(()=>content.items.map(item=>cmsOpportunity(item)),[content.items]);
   const liveById=useMemo(()=>Object.fromEntries(liveOpportunities.map(item=>[item.id,item])),[liveOpportunities]);
   const visible=useMemo(()=>liveOpportunities.filter(item=>`${item.title} ${item.org} ${item.type}`.toLowerCase().includes(query.toLowerCase())),[liveOpportunities,query]);
 
