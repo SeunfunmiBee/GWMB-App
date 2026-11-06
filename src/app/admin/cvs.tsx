@@ -14,6 +14,7 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import type { CvAnalysis, CvRecord } from "@/lib/cv-store";
+import { createSignedUrl } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors, fonts } from "@/theme";
@@ -59,12 +60,10 @@ export default function AdminCvs() {
 
   async function openOriginal(item: CvRecord) {
     if (!item.original_file_path) return;
-    const { data, error } = await supabase.storage
-      .from("private-cvs")
-      .createSignedUrl(item.original_file_path, 60);
-    if (error || !data?.signedUrl)
+    const { url, error } = await createSignedUrl("private-cvs", item.original_file_path, 60);
+    if (error || !url)
       return Alert.alert("Could not open CV", "Please try again.");
-    await Linking.openURL(data.signedUrl);
+    await Linking.openURL(url);
   }
 
   if (!isAdmin)

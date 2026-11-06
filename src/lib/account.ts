@@ -1,3 +1,4 @@
+import { publicUrl, uploadFile } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import type { MembershipApplication, MembershipDetails, MembershipVerificationRequest, Profile } from '@/types/database';
 
@@ -11,12 +12,10 @@ export async function uploadAvatar(userId: string, uri: string, mimeType?: strin
   const contentType = mimeType && ['image/jpeg', 'image/png', 'image/webp'].includes(mimeType) ? mimeType : 'image/jpeg';
   const extension = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
   const path = `${userId}/profile.${extension}`;
-  const arrayBuffer = await fetch(uri).then((response) => response.arrayBuffer());
-  if (arrayBuffer.byteLength > 5 * 1024 * 1024) throw new Error('Choose an image smaller than 5 MB.');
-  const { error } = await supabase.storage.from('avatars').upload(path, arrayBuffer, { contentType, upsert: true, cacheControl: '3600' });
-  if (error) throw error;
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  return `${data.publicUrl}?v=${Date.now()}`;
+  const blob = await fetch(uri).then((response) => response.blob());
+  if (blob.size > 5 * 1024 * 1024) throw new Error('Choose an image smaller than 5 MB.');
+  await uploadFile('avatars', path, blob, { contentType, upsert: true });
+  return `${publicUrl('avatars', path)}?v=${Date.now()}`;
 }
 
 export async function loadMembershipApplication(userId: string) {

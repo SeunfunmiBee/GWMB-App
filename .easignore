@@ -28,3 +28,6 @@ yarn-error.*
 
 # Preserve the legacy screen locally without packaging it as an app route.
 src/app/(tabs)/grow 2.tsx
+
+# Cloudflare API Worker (deployed separately)
+api/

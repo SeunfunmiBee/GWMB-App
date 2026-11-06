@@ -7,7 +7,7 @@ import { AuthField } from '@/components/AuthField';
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { loadMyMembershipDetails, loadVerificationRequest, requestMembershipLink, sendMembershipEmailCode, verifyMembershipEmailCode, type MembershipLinkResult } from '@/lib/account';
-import { supabase } from '@/lib/supabase';
+import { updateMetadata } from '@/lib/auth';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 import type { MembershipDetails, MembershipVerificationRequest } from '@/types/database';
@@ -42,7 +42,7 @@ export default function VerifyMembership(){
       setResult(response);
       if(response.result==='email_confirmation_required'){const sent=await sendMembershipEmailCode();setOtpSent(true);setMessage(sent.message)}
       await refreshAccount();const[record,memberDetails]=await Promise.all([loadVerificationRequest(user.id),loadMyMembershipDetails()]);setRequest(record);setDetails(memberDetails);
-      if(response.result==='verified')await supabase.auth.updateUser({data:{membership_intent:false}});
+      if(response.result==='verified')await updateMetadata({membership_intent:false});
     }).catch(error=>setMessage(error instanceof Error?error.message:'We could not check the official member record again.')).finally(()=>setRechecking(false));
   },[loading,request,refreshAccount,user]);
 
@@ -57,14 +57,14 @@ export default function VerifyMembership(){
       }
       await refreshAccount();
       const[record,memberDetails]=await Promise.all([loadVerificationRequest(user.id),loadMyMembershipDetails()]);setRequest(record);setDetails(memberDetails);
-      if(response.result==='verified')await supabase.auth.updateUser({data:{membership_intent:false}});
+      if(response.result==='verified')await updateMetadata({membership_intent:false});
     }catch(error){setMessage(error instanceof Error?error.message:'We could not verify this membership.')}finally{setSubmitting(false)}
   }
 
   async function confirmCode(){
     if(otpCode.trim().length!==6){setErrors(current=>({...current,code:'Enter the complete 6-digit code.'}));setMessage('Check the verification code and try again.');return;}
     setSubmitting(true);setMessage(null);
-    try{const response=await verifyMembershipEmailCode(otpCode);setMessage(response.message);await supabase.auth.updateUser({data:{membership_intent:false}});await refreshAccount();setDetails(await loadMyMembershipDetails())}
+    try{const response=await verifyMembershipEmailCode(otpCode);setMessage(response.message);await updateMetadata({membership_intent:false});await refreshAccount();setDetails(await loadMyMembershipDetails())}
     catch(error){setMessage(error instanceof Error?error.message:'That verification code could not be confirmed.')}
     finally{setSubmitting(false)}
   }

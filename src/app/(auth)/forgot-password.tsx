@@ -1,17 +1,21 @@
 import { router } from 'expo-router';
-import * as Linking from 'expo-linking';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AuthField } from '@/components/AuthField';
 import { AuthScreen } from '@/components/AuthScreen';
-import { supabase } from '@/lib/supabase';
+import { requestPasswordReset, resetPassword } from '@/lib/auth';
 import { colors, fonts } from '@/theme';
+
+type Step = 'email' | 'code' | 'done';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [message, setMessage] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
+  const [step, setStep] = useState<Step>('email');
   const [loading, setLoading] = useState(false);
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -21,44 +25,70 @@ export default function ForgotPasswordScreen() {
       setMessage('Enter a valid email address.');
       return;
     }
-
     setLoading(true);
     setMessage(null);
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo: Linking.createURL('reset-password') });
+    const { error } = await requestPasswordReset(normalizedEmail);
     setLoading(false);
-    if (error) { setMessage(error.message); return; }
-    setSent(true);
+    if (error) { setMessage(error); return; }
+    setStep('code');
+  }
+
+  async function saveNewPassword() {
+    setMessage(null);
+    if (!/^\d{6}$/.test(code.trim())) { setMessage('Enter the 6-digit code from your email.'); return; }
+    if (password.length < 8) { setMessage('Use at least 8 characters for your password.'); return; }
+    if (password !== confirm) { setMessage('The passwords do not match.'); return; }
+    setLoading(true);
+    const { error } = await resetPassword(normalizedEmail, code, password);
+    setLoading(false);
+    if (error) { setMessage(error); return; }
+    setStep('done');
+  }
+
+  const errorBox = message ? (
+    <View style={styles.message}>
+      <Text style={styles.messageText}>{message}</Text>
+    </View>
+  ) : null;
+
+  if (step === 'done') {
+    return (
+      <AuthScreen eyebrow="Password updated" title="You’re ready to continue" description="Your new password is active. Sign in with it now.">
+        <View style={styles.sent}>
+          <Text style={styles.sentMark}>✓</Text>
+          <Text style={styles.sentTitle}>Your account is secure</Text>
+        </View>
+        <Pressable onPress={() => router.replace('/sign-in')} style={styles.submit}>
+          <Text style={styles.submitText}>Go to sign in</Text>
+        </Pressable>
+      </AuthScreen>
+    );
   }
 
   return (
     <AuthScreen
       eyebrow="Account recovery"
-      title={sent ? 'Check your email' : 'Reset your password'}
+      title={step === 'code' ? 'Choose a new password' : 'Reset your password'}
       description={
-        sent
-          ? `We sent a secure password reset link to ${normalizedEmail}.`
+        step === 'code'
+          ? `Enter the 6-digit code we sent to ${normalizedEmail}, then choose a new password.`
           : 'Enter the email address connected to your GWMB account.'
       }>
-      {sent ? (
+      {step === 'code' ? (
         <>
-          <View style={styles.sent}>
-            <Text style={styles.sentMark}>✦</Text>
-            <Text style={styles.sentTitle}>Check your inbox</Text>
-            <Text style={styles.sentCopy}>
-              Open the link in the email to return to GWMB and choose a new password. Check spam or promotions if it is not in your inbox.
-            </Text>
-          </View>
-          {message ? (
-            <View style={styles.message}>
-              <Text style={styles.messageText}>{message}</Text>
-            </View>
-          ) : null}
+          <AuthField label="Reset code" value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))} placeholder="123456" keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={6} />
+          <AuthField label="New password" value={password} onChangeText={setPassword} placeholder="At least 8 characters" password autoComplete="new-password" />
+          <AuthField label="Confirm new password" value={confirm} onChangeText={setConfirm} placeholder="Repeat your password" password autoComplete="new-password" />
+          {errorBox}
+          <Pressable disabled={loading} onPress={saveNewPassword} style={[styles.submit, loading && styles.disabled]}>
+            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>Update password</Text>}
+          </Pressable>
           <Pressable disabled={loading} onPress={sendCode} style={styles.resend}>
-            <Text style={styles.resendText}>Send a new link</Text>
+            <Text style={styles.resendText}>Send a new code</Text>
           </Pressable>
           <Pressable
             onPress={() => {
-              setSent(false);
+              setStep('email');
               setMessage(null);
             }}
             style={styles.changeEmail}>
@@ -75,13 +105,9 @@ export default function ForgotPasswordScreen() {
             keyboardType="email-address"
             autoComplete="email"
           />
-          {message ? (
-            <View style={styles.message}>
-              <Text style={styles.messageText}>{message}</Text>
-            </View>
-          ) : null}
+          {errorBox}
           <Pressable disabled={loading} onPress={sendCode} style={[styles.submit, loading && styles.disabled]}>
-            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>Send reset link</Text>}
+            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>Send reset code</Text>}
           </Pressable>
         </>
       )}
@@ -132,12 +158,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   sentTitle: { color: colors.ink, fontSize: 15, fontFamily: fonts.heading, marginTop: 13 },
-  sentCopy: {
-    color: colors.muted,
-    fontSize: 11,
-    lineHeight: 18,
-    fontFamily: fonts.body,
-    textAlign: 'center',
-    marginTop: 6,
-  },
 });

@@ -1,13 +1,12 @@
-import type { Session, User } from '@supabase/supabase-js';
-import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { supabase } from '@/lib/supabase';
+import { apiFetch, type AppSession, type AppUser, authClient, signOut as authSignOut, toAppUser } from '@/lib/auth';
 import type { ChapterAccess } from '@/lib/chapter-admin';
 import type { Membership, Profile } from '@/types/database';
 
 type AuthContextValue = {
-  session: Session | null;
-  user: User | null;
+  session: AppSession | null;
+  user: AppUser | null;
   profile: Profile | null;
   membership: Membership | null;
   isAdmin: boolean;
@@ -22,92 +21,76 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
 };
 
+type Account = { profile: Profile | null; membership: Membership | null; isAdmin: boolean; chapterAdminAccess: ChapterAccess[] };
+const EMPTY_ACCOUNT: Account = { profile: null, membership: null, isAdmin: false, chapterAdminAccess: [] };
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+type LoadedAccount = { userId: string; account: Account; error: string | null };
+
+async function requestAccount(userId: string): Promise<LoadedAccount> {
+  try {
+    const next = await apiFetch<Account>('/v1/me');
+    return { userId, account: { ...next, chapterAdminAccess: next.chapterAdminAccess ?? [] }, error: null };
+  } catch (error) {
+    return { userId, account: EMPTY_ACCOUNT, error: error instanceof Error ? error.message : 'Your account could not be loaded.' };
+  }
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [membership, setMembership] = useState<Membership | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [chapterAdminAccess, setChapterAdminAccess] = useState<ChapterAccess[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [accountLoading, setAccountLoading] = useState(true);
-  const [accountError, setAccountError] = useState<string | null>(null);
-  const [sessionExpired, setSessionExpired] = useState(false);
-  const accountRequest = useRef(0);
-  const hadSession = useRef(false);
-  const intentionalSignOut = useRef(false);
+  const { data: sessionData, isPending } = authClient.useSession();
+  const sessionUser = sessionData?.user;
+  const user = useMemo(() => (sessionUser ? toAppUser(sessionUser) : null), [sessionUser]);
+  const userId = user?.id ?? null;
 
-  const loadAccount = useCallback(async (userId?: string) => {
-    const request = ++accountRequest.current;
-    setAccountLoading(true);
-    if (!userId) {
-      setProfile(null);
-      setMembership(null);
-      setIsAdmin(false);
-      setChapterAdminAccess([]);
-      setAccountError(null);
-      setAccountLoading(false);
-      return;
-    }
-    const [profileResult, membershipResult, adminResult,chapterResult] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('memberships').select('*').eq('user_id', userId).maybeSingle(),
-      supabase.rpc('is_app_admin'),
-      supabase.rpc('get_my_chapter_admin_access'),
-    ]);
-    if (request !== accountRequest.current) return;
-    const error = profileResult.error ?? membershipResult.error ?? adminResult.error ?? chapterResult.error;
-    if (error) {
-      setProfile(null);
-      setMembership(null);
-      setIsAdmin(false);
-      setChapterAdminAccess([]);
-      setAccountError(error.message);
-      setAccountLoading(false);
-      return;
-    }
-    setProfile(profileResult.data as Profile | null);
-    setMembership(membershipResult.data as Membership | null);
-    setIsAdmin(adminResult.data === true);
-    setChapterAdminAccess((chapterResult.data??[]) as ChapterAccess[]);
-    setAccountError(null);
-    setAccountLoading(false);
-  }, []);
-
-  const refreshAccount = useCallback(async () => loadAccount(session?.user.id), [loadAccount, session?.user.id]);
-
+  // Account data is keyed by the user it was loaded for, so a stale response never shows for another user.
+  const [loaded, setLoaded] = useState<LoadedAccount | null>(null);
   useEffect(() => {
-    let mounted = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!mounted) return;
-      hadSession.current = Boolean(data.session);
-      setSession(data.session);
-      await loadAccount(data.session?.user.id);
-      if (mounted) setLoading(false);
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === 'SIGNED_OUT' && hadSession.current && !intentionalSignOut.current) setSessionExpired(true);
-      if (nextSession) { hadSession.current = true; setSessionExpired(false); }
-      if (event === 'SIGNED_OUT') hadSession.current = false;
-      intentionalSignOut.current = false;
-      setSession(nextSession);
-      void loadAccount(nextSession?.user.id);
-      setLoading(false);
-    });
-    return () => { mounted = false; listener.subscription.unsubscribe(); };
-  }, [loadAccount]);
+    if (isPending || !userId) return;
+    let active = true;
+    void requestAccount(userId).then((next) => { if (active) setLoaded(next); });
+    return () => { active = false; };
+  }, [isPending, userId]);
+  const current = userId && loaded?.userId === userId ? loaded : null;
+
+  // A session that disappears without an intentional sign-out is reported as expired.
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  if (!isPending && userId !== lastUserId) {
+    setLastUserId(userId);
+    if (userId) setSessionExpired(false);
+    else if (lastUserId) { setSessionExpired(!signingOut); setSigningOut(false); }
+  }
+
+  const refreshAccount = useCallback(async () => { if (userId) setLoaded(await requestAccount(userId)); }, [userId]);
 
   const signOut = useCallback(async () => {
-    intentionalSignOut.current = true;
-    await supabase.rpc('deactivate_my_push_devices');
-    const { error } = await supabase.auth.signOut();
-    if (error) { intentionalSignOut.current = false; throw error; }
+    setSigningOut(true);
+    await apiFetch('/v1/me/push-devices/deactivate', { method: 'POST' }).catch(() => undefined);
+    const { error } = await authSignOut();
+    if (error) { setSigningOut(false); throw new Error(error); }
   }, []);
 
   const clearSessionExpired = useCallback(() => setSessionExpired(false), []);
 
-  const value = useMemo<AuthContextValue>(() => ({ session, user: session?.user ?? null, profile, membership, isAdmin, isChapterAdmin:chapterAdminAccess.length>0,chapterAdminAccess,loading, accountLoading, accountError, sessionExpired, clearSessionExpired, refreshAccount, signOut }), [accountError, accountLoading, chapterAdminAccess,clearSessionExpired,isAdmin, loading, membership, profile, refreshAccount, session, sessionExpired, signOut]);
+  const account = current?.account ?? EMPTY_ACCOUNT;
+  const value = useMemo<AuthContextValue>(() => ({
+    session: user ? { user } : null,
+    user,
+    profile: account.profile,
+    membership: account.membership,
+    isAdmin: account.isAdmin,
+    isChapterAdmin: account.chapterAdminAccess.length > 0,
+    chapterAdminAccess: account.chapterAdminAccess,
+    loading: isPending,
+    accountLoading: isPending || (Boolean(userId) && !current),
+    accountError: current?.error ?? null,
+    sessionExpired,
+    clearSessionExpired,
+    refreshAccount,
+    signOut,
+  }), [account, clearSessionExpired, current, isPending, refreshAccount, sessionExpired, signOut, user, userId]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

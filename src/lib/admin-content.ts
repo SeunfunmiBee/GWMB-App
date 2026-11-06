@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as tus from 'tus-js-client';
-
+import { createSignedUrl, publicUrl, uploadFile, type UploadControl } from '@/lib/storage';
+import { getUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 export const contentAreas = [
@@ -73,7 +73,7 @@ export async function listPublishedContent(area: ContentArea) {
 }
 
 export async function saveContentItem(draft: ContentDraft) {
-  const { data: auth } = await supabase.auth.getUser();
+  const { data: auth } = await getUser();
   const payload = { ...draft, updated_by: auth.user?.id ?? null };
   if (draft.id) {
     const { id, ...update } = payload;
@@ -96,9 +96,12 @@ export async function pickAndUploadContentImage(area: string) {
   const blob = await response.blob();
   const extension = asset.fileName?.split('.').pop()?.toLowerCase() || asset.mimeType?.split('/').pop() || 'jpg';
   const path = `${area}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
-  const upload = await supabase.storage.from('content-media').upload(path, blob, { contentType: asset.mimeType ?? 'image/jpeg', upsert: false });
-  if (upload.error) return { url: null, error: upload.error };
-  return { url: supabase.storage.from('content-media').getPublicUrl(path).data.publicUrl, error: null };
+  try {
+    await uploadFile('content-media', path, blob, { contentType: asset.mimeType ?? 'image/jpeg' });
+    return { url: publicUrl('content-media', path), error: null };
+  } catch (error) {
+    return { url: null, error: error instanceof Error ? error : new Error(String(error)) };
+  }
 }
 
 export type ContentUploadController = {
@@ -119,39 +122,21 @@ export async function pickAndUploadContentFile(area: string, type: string | stri
   const extension = asset.name.split('.').pop()?.toLowerCase() || 'bin';
   const path = `${area}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
   const bucket=protectedAccess?'protected-content-media':'content-media';
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) return { url: null, error: new Error('Your Admin session expired. Sign in again before uploading.') };
-
-  const configuredUrl=process.env.EXPO_PUBLIC_SUPABASE_URL;
-  if(!configuredUrl)return{url:null,error:new Error('Storage is not configured.')};
-  const projectRef=new URL(configuredUrl).hostname.split('.')[0];
-  const endpoint=`https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`;
-  const source=asset.file??{uri:asset.uri,name:asset.name,type:asset.mimeType??'application/octet-stream'};
+  const control:UploadControl={paused:false,cancelled:false};
 
   return new Promise<{url:string|null;error:Error|null}>((resolve)=>{
     let settled=false;
     const finish=(value:{url:string|null;error:Error|null})=>{if(settled)return;settled=true;options.onController?.(null);resolve(value)};
-    const upload=new tus.Upload(source as never,{
-      endpoint,
-      retryDelays:[0,3000,5000,10000,20000],
-      chunkSize:6*1024*1024,
-      uploadDataDuringCreation:true,
-      removeFingerprintOnSuccess:true,
-      headers:{authorization:`Bearer ${session.access_token}`,'x-upsert':'false'},
-      metadata:{bucketName:bucket,objectName:path,contentType:asset.mimeType??'application/octet-stream',cacheControl:'3600'},
-      onProgress:(uploaded,total)=>options.onProgress?.(total>0?Math.round((uploaded/total)*100):0),
-      onError:error=>finish({url:null,error:error instanceof Error?error:new Error(String(error))}),
-      onSuccess:()=>finish({url:protectedAccess?`protected-content-media://${path}`:supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl,error:null}),
-    });
     options.onController?.({
-      pause:()=>upload.abort(false),
-      resume:()=>upload.start(),
-      cancel:async()=>{await upload.abort(true);finish({url:null,error:new Error('Upload cancelled.')})},
+      pause:async()=>{control.paused=true},
+      resume:()=>{control.paused=false;control.resume?.()},
+      cancel:async()=>{control.cancelled=true;control.resume?.();finish({url:null,error:new Error('Upload cancelled.')})},
     });
     void (async()=>{
       try{
-        if(tus.canStoreURLs){const previous=await upload.findPreviousUploads();if(previous.length)upload.resumeFromPreviousUpload(previous[0])}
-        upload.start();
+        const body=asset.file??await(await fetch(asset.uri)).blob();
+        await uploadFile(bucket,path,body,{contentType:asset.mimeType??'application/octet-stream',onProgress:options.onProgress,control});
+        finish({url:protectedAccess?`protected-content-media://${path}`:publicUrl('content-media',path),error:null});
       }catch(error){finish({url:null,error:error instanceof Error?error:new Error(String(error))})}
     })();
   });
@@ -160,9 +145,7 @@ export async function pickAndUploadContentFile(area: string, type: string | stri
 export async function resolveContentFileUrl(value:string){
   const prefix='protected-content-media://';
   if(!value.startsWith(prefix))return{url:value,error:null};
-  const path=value.slice(prefix.length);
-  const{data,error}=await supabase.storage.from('protected-content-media').createSignedUrl(path,15*60);
-  return{url:data?.signedUrl??null,error};
+  return createSignedUrl('protected-content-media',value.slice(prefix.length),15*60);
 }
 
 export async function createGoogleMeet(contentId: string) {

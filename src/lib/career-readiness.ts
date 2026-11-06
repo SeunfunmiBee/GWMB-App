@@ -1,4 +1,6 @@
 import { listPublishedContent, type ContentItem } from "@/lib/admin-content";
+import { createSignedUrl } from "@/lib/storage";
+import { getUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
 export type ReviewType =
@@ -390,7 +392,7 @@ export async function updateReviewSubmission(
 ) {
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getUser();
   return supabase
     .from("career_review_submissions")
     .update({
@@ -403,10 +405,7 @@ export async function updateReviewSubmission(
 }
 export async function getReviewDocumentUrl(submission: CareerReviewSubmission) {
   if (submission.uploaded_file_path) {
-    const { data, error } = await supabase.storage
-      .from("private-cvs")
-      .createSignedUrl(submission.uploaded_file_path, 60 * 15);
-    return { url: data?.signedUrl ?? null, error };
+    return createSignedUrl("private-cvs", submission.uploaded_file_path, 60 * 15);
   }
   if (submission.cv_record_id) {
     const { data: cv, error } = await supabase
@@ -417,10 +416,7 @@ export async function getReviewDocumentUrl(submission: CareerReviewSubmission) {
     if (error) return { url: null, error };
     const path = cv?.generated_file_path || cv?.original_file_path;
     if (!path) return { url: null, error: null };
-    const signed = await supabase.storage
-      .from("private-cvs")
-      .createSignedUrl(path, 60 * 15);
-    return { url: signed.data?.signedUrl ?? null, error: signed.error };
+    return createSignedUrl("private-cvs", path, 60 * 15);
   }
   return { url: null, error: null };
 }

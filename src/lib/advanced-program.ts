@@ -1,3 +1,4 @@
+import { getUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
 export type AdvancedProgramClaim={
@@ -28,6 +29,6 @@ export async function loadAdminAdvancedOffer(contentId:string){
 }
 
 export async function saveAdminAdvancedOffer(contentId:string,offer:SecureAdvancedOffer){
-  const{data:auth}=await supabase.auth.getUser();
+  const{data:auth}=await getUser();
   return supabase.from('advanced_program_offers').upsert({content_id:contentId,benefit_code:offer.benefitCode.trim()||null,max_claims:offer.maxClaims?Number(offer.maxClaims):null,active:offer.active,updated_by:auth.user?.id??null},{onConflict:'content_id'});
 }

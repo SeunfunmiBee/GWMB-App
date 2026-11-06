@@ -9,7 +9,6 @@ import { useEffect } from 'react';
 
 import { colors } from '@/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
-import { AuthDeepLinkHandler } from '@/components/AuthDeepLinkHandler';
 import { NotificationBridge } from '@/components/NotificationBridge';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { OperationalErrorBridge } from '@/components/OperationalErrorBridge';
@@ -43,7 +42,6 @@ function AppNavigator() {
   if (user && accountError && pathname !== '/support') return <Screen scroll={false} contentContainerStyle={{justifyContent:'center'}}><AppStateView kind={offline?'offline':'error'} title={offline?'Reconnect to continue.':'We couldn’t load your account.'} copy={offline?'Your saved activity is safe. Connect to the internet and try again.':'Your account is safe. Check your connection and try again.'} actionLabel="Try again" onAction={()=>void refreshAccount()} secondaryLabel={offline?undefined:'Contact support'} onSecondary={offline?undefined:()=>router.push('/support')}/></Screen>;
 
   return <>
-    <AuthDeepLinkHandler />
     <NotificationBridge />
     <StatusBar style="dark" />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
@@ -56,7 +54,6 @@ function AppNavigator() {
       <Stack.Screen name="event/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="events" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="registration/[id]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="reset-password" options={{ animation: 'slide_from_right' }} />
     </Stack>
   </>;
 }

@@ -107,11 +107,15 @@ Deno.serve(async (req) => {
     const details = parseDetails(request.details);
     const path = request.export_path ?? details.path;
     if (!path) return json({ error: 'The export file is not ready.' }, 409);
-    const { data, error: signError } = await service.storage
-      .from('privacy-exports')
-      .createSignedUrl(path, 60 * 10);
-    if (signError) return json({ error: signError.message }, 500);
-    return json({ url: data.signedUrl });
+    try {
+      const { signedUrl } = await r2<{ signedUrl: string }>('/sign', {
+        method: 'POST',
+        body: JSON.stringify({ bucket: 'privacy-exports', path, expiresIn: 60 * 10 }),
+      });
+      return json({ url: signedUrl });
+    } catch (signError) {
+      return json({ error: errorMessage(signError) }, 500);
+    }
   }
 
   const { data: isAdmin } = await caller.rpc('is_app_admin');
@@ -132,11 +136,11 @@ Deno.serve(async (req) => {
     try {
       const bundle = await createExportBundle(service, request.user_id, request.email);
       const path = `${request.user_id}/${request.id}.json`;
-      const file = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const { error: uploadError } = await service.storage
-        .from('privacy-exports')
-        .upload(path, file, { contentType: 'application/json', upsert: true });
-      if (uploadError) throw new Error(`privacy-exports: ${uploadError.message}`);
+      await r2(`/object/privacy-exports/${encodePath(path)}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', 'x-upsert': 'true' },
+        body: JSON.stringify(bundle, null, 2),
+      }).catch((uploadError) => { throw new Error(`privacy-exports: ${errorMessage(uploadError)}`); });
 
       const { error: completionError } = await service.from('account_requests').update({
         status: 'completed',
@@ -158,7 +162,7 @@ Deno.serve(async (req) => {
   try {
     // User-uploaded files are removed first so deleting auth cannot leave private,
     // ownerless objects that the user can no longer discover or remove.
-    const storageObjectsRemoved = await removeOwnedStorage(service, request.user_id);
+    const storageObjectsRemoved = await removeOwnedStorage(request.user_id);
 
     // These legacy tables previously retained personal text after auth deletion.
     // Explicit cleanup keeps deletion correct before every environment has the
@@ -269,7 +273,7 @@ async function createExportBundle(
 
   const storageFiles: StorageFile[] = [];
   for (const bucket of ownedStorageBuckets) {
-    storageFiles.push(...await listOwnedStorage(service, bucket, userId));
+    storageFiles.push(...await listOwnedStorage(bucket, userId));
   }
   bundle.storage_files = storageFiles;
   return bundle;
@@ -313,60 +317,51 @@ async function readRowsByValues(
   return rows;
 }
 
-async function listOwnedStorage(
-  service: ReturnType<typeof createClient>,
-  bucket: string,
-  userId: string,
-) {
+// Files live in Cloudflare R2 (storage-worker/). Owned files sit under `<userId>/`.
+async function listOwnedStorage(bucket: string, userId: string) {
   const files: StorageFile[] = [];
-  const walk = async (folder: string): Promise<void> => {
-    for (let offset = 0; ; offset += PAGE_SIZE) {
-      const { data, error } = await service.storage.from(bucket).list(folder, {
-        limit: PAGE_SIZE,
-        offset,
-        sortBy: { column: 'name', order: 'asc' },
-      });
-      if (error) {
-        if (isMissingBucket(error.message)) return;
-        throw new Error(`${bucket}/${folder}: ${error.message}`);
-      }
-      const entries = data ?? [];
-      for (const entry of entries) {
-        const path = `${folder}/${entry.name}`;
-        if (entry.id) {
-          const metadata = entry.metadata as Record<string, unknown> | null;
-          files.push({
-            bucket,
-            path,
-            size: typeof metadata?.size === 'number' ? metadata.size : null,
-            content_type: typeof metadata?.mimetype === 'string' ? metadata.mimetype : null,
-            created_at: entry.created_at ?? null,
-            updated_at: entry.updated_at ?? null,
-          });
-        } else {
-          await walk(path);
-        }
-      }
-      if (entries.length < PAGE_SIZE) break;
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({ bucket, prefix: `${userId}/` });
+    if (cursor) query.set('cursor', cursor);
+    const page = await r2<{ files: { path: string; size: number; content_type: string | null; uploaded_at: string }[]; cursor: string | null }>(`/list?${query}`, { method: 'GET' });
+    for (const file of page.files) {
+      files.push({ bucket, path: file.path, size: file.size, content_type: file.content_type, created_at: file.uploaded_at, updated_at: file.uploaded_at });
     }
-  };
-  await walk(userId);
+    cursor = page.cursor;
+  } while (cursor);
   return files;
 }
 
-async function removeOwnedStorage(service: ReturnType<typeof createClient>, userId: string) {
+async function removeOwnedStorage(userId: string) {
   let removed = 0;
   for (const bucket of ownedStorageBuckets) {
-    const files = await listOwnedStorage(service, bucket, userId);
-    const paths = files.map((file) => file.path);
+    const paths = (await listOwnedStorage(bucket, userId)).map((file) => file.path);
     for (let index = 0; index < paths.length; index += STORAGE_REMOVE_BATCH_SIZE) {
       const chunk = paths.slice(index, index + STORAGE_REMOVE_BATCH_SIZE);
-      const { error } = await service.storage.from(bucket).remove(chunk);
-      if (error) throw new Error(`${bucket}: ${error.message}`);
+      await r2('/delete', { method: 'POST', body: JSON.stringify({ bucket, paths: chunk }) })
+        .catch((error) => { throw new Error(`${bucket}: ${errorMessage(error)}`); });
       removed += chunk.length;
     }
   }
   return removed;
+}
+
+async function r2<T = unknown>(path: string, init: RequestInit): Promise<T> {
+  const base = Deno.env.get('STORAGE_URL');
+  const secret = Deno.env.get('STORAGE_ADMIN_SECRET');
+  if (!base || !secret) throw new Error('Storage is not configured (STORAGE_URL, STORAGE_ADMIN_SECRET).');
+  const res = await fetch(`${base.replace(/\/$/, '')}${path}`, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...init.headers, 'x-admin-secret': secret },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body?.error === 'string' ? body.error : `Storage request failed (${res.status}).`);
+  return body as T;
+}
+
+function encodePath(path: string) {
+  return path.split('/').map(encodeURIComponent).join('/');
 }
 
 async function deleteOwnedRows(
@@ -388,11 +383,6 @@ async function failRequest(
     status: 'submitted',
     processing_error: message.slice(0, 2000),
   }).eq('id', requestId);
-}
-
-function isMissingBucket(message: string) {
-  const normalized = message.toLowerCase();
-  return normalized.includes('bucket not found') || normalized.includes('resource not found');
 }
 
 function errorMessage(error: unknown) {

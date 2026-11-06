@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gwmb-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "gwmb", "database_id": "local-placeholder", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "gwmb-files" }],
+  "vars": {
+    "APP_SCHEME": "gwmb",
+    "WEB_ORIGINS": "http://localhost:8081"
+  }
+  // Set per environment: BETTER_AUTH_URL (var), and secrets BETTER_AUTH_SECRET, SIGNING_SECRET,
+  // ADMIN_SECRET, RESEND_API_KEY, NOTIFICATION_FROM_EMAIL. See README.
+}

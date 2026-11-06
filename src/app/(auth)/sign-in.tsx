@@ -5,7 +5,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { AuthField } from '@/components/AuthField';
 import { AuthScreen } from '@/components/AuthScreen';
 import { completeWelcome } from '@/lib/first-launch';
-import { supabase } from '@/lib/supabase';
+import { apiFetch, signIn as authSignIn, updateMetadata } from '@/lib/auth';
+import type { Membership } from '@/types/database';
 import { colors, fonts } from '@/theme';
 
 const router={replace:(href:string)=>expoRouter.replace(href as never),push:(href:string)=>expoRouter.push(href as never)};
@@ -16,13 +17,19 @@ export default function SignInScreen(){
     setMessage(null);
     if(!email.trim()||!password){setMessage('Enter your email address and password.');return;}
     setSubmitting(true);
-    const{data,error}=await supabase.auth.signInWithPassword({email:email.trim().toLowerCase(),password});
-    if(error){setSubmitting(false);setMessage(error.message);return;}
-    const{data:membership}=await supabase.from('memberships').select('status').eq('user_id',data.user.id).maybeSingle();
-    if(membership?.status==='verified'&&data.user.user_metadata?.membership_intent)await supabase.auth.updateUser({data:{membership_intent:false}});
+    const normalized=email.trim().toLowerCase();
+    const{data,error}=await authSignIn(normalized,password);
+    if(error||!data.user){
+      setSubmitting(false);
+      if(data.needsVerification){router.push(`/verify-email?email=${encodeURIComponent(normalized)}&next=/`);return;}
+      setMessage(error??'Email or password is incorrect.');return;
+    }
+    const{membership}=await apiFetch<{membership:Pick<Membership,'status'>|null}>('/v1/me').catch(()=>({membership:null}));
+    const wantsMembership=Boolean(data.user.user_metadata.membership_intent);
+    if(membership?.status==='verified'&&wantsMembership)await updateMetadata({membership_intent:false});
     setSubmitting(false);
     completeWelcome();
-    router.replace(data.user.user_metadata?.membership_intent&&membership?.status!=='verified'?'/verify-membership':'/');
+    router.replace(wantsMembership&&membership?.status!=='verified'?'/verify-membership':'/');
   }
   return <AuthScreen eyebrow="Welcome back" title="Sign in to GWMB" description="Continue your learning, applications and community experience."><AuthField label="Email address" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoComplete="email"/><AuthField label="Password" value={password} onChangeText={setPassword} placeholder="Enter your password" password autoComplete="current-password"/><Pressable onPress={()=>router.push('/forgot-password')} style={styles.forgot}><Text style={styles.forgotText}>Forgot password?</Text></Pressable>{message?<View style={styles.message}><Text style={styles.messageText}>{message}</Text></View>:null}<Pressable disabled={submitting} onPress={()=>void signIn()} style={[styles.submit,submitting&&styles.disabled]}>{submitting?<ActivityIndicator color="white"/>:<Text style={styles.submitText}>Sign in</Text>}</Pressable><Pressable onPress={()=>router.replace('/sign-up')} style={styles.switch}><Text style={styles.switchText}>New to GWMB? <Text style={styles.switchStrong}>Create an account</Text></Text></Pressable><Pressable onPress={()=>router.replace('/member-access')} style={styles.member}><Text style={styles.memberText}>Already a member but new to the app? Verify & continue</Text></Pressable></AuthScreen>;
 }
