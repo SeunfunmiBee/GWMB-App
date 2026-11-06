@@ -138,6 +138,13 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return cookie ? { cookie } : {};
 }
 
+/** An error response from the API. Errors without a status (thrown by fetch) are network failures. */
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
 /** `apiFetch` with the Supabase-style `{ data, error }` result the data modules already expect. */
 export async function apiCall<T>(path: string, init: RequestInit = {}): Promise<{ data: T | null; error: Error | null }> {
   try {
@@ -152,6 +159,6 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   const headers = { ...(await authHeaders()), ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...(init.headers as Record<string, string> | undefined) };
   const res = await fetch(`${API_URL}${path}`, { ...init, headers, credentials: 'omit' });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof body?.error === 'string' ? body.error : `Request failed (${res.status}).`);
+  if (!res.ok) throw new ApiError(typeof body?.error === 'string' ? body.error : `Request failed (${res.status}).`, res.status);
   return body as T;
 }

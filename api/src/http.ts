@@ -48,6 +48,13 @@ export async function body<T extends z.ZodType>(c: Context<AppEnv>, schema: T): 
 
 export function onError(error: Error, c: Context<AppEnv>) {
   if (error instanceof HttpError) return c.json({ error: error.message }, error.status);
+  // Constraint failures come from invalid input that slipped past validation; report them as 400s
+  // without echoing schema details.
+  const message = `${error.message} ${(error as { cause?: Error }).cause?.message ?? ''}`;
+  if (/CHECK constraint failed|NOT NULL constraint failed|FOREIGN KEY constraint failed/.test(message)) {
+    return c.json({ error: 'Some of the details are not valid. Check the form and try again.' }, 400);
+  }
+  if (/UNIQUE constraint failed/.test(message)) return c.json({ error: 'This already exists.' }, 409);
   console.error(error);
   return c.json({ error: 'Something went wrong. Please try again.' }, 500);
 }

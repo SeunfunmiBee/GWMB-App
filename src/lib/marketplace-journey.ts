@@ -1,7 +1,7 @@
 import type { CourseProgress } from '@/lib/course-progress';
 import type { EventRegistration } from '@/lib/event-store';
 import type { OpportunityApplication } from '@/lib/opportunity-store';
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type JourneyGoal = 'first-internship' | 'first-job' | 'discover-career' | 'break-into-career' | 'learn-skill' | 'improve-profile' | 'grow-career' | 'start-business' | 'grow-business';
 export type CareerStage = 'student' | 'nysc' | 'recent-graduate' | 'early-career' | 'entrepreneur' | 'other';
@@ -87,7 +87,7 @@ export function inferJourneyStage(goal: JourneyGoal): JourneyStage {
 
 export async function loadMarketplaceJourney(userId: string) {
   const local = readLocal(userId);
-  const { data, error } = await supabase.from('marketplace_journeys').select('*').eq('user_id', userId).maybeSingle();
+  const { data, error } = await apiCall<MarketplaceJourney | null>('/v1/marketplace/journey');
   if (error || !data) return { journey: local, cloud: false };
   const journey = data as MarketplaceJourney;
   writeLocal(journey);
@@ -107,7 +107,7 @@ export async function saveMarketplaceJourney(input: { userId: string; goal: Jour
     created_at: existing?.created_at ?? now,
     updated_at: now,
   };
-  const { data, error } = await supabase.from('marketplace_journeys').upsert(payload, { onConflict: 'user_id' }).select('*').single();
+  const { data, error } = await apiCall<MarketplaceJourney>('/v1/marketplace/journey', { method: 'PUT', body: JSON.stringify(payload) });
   const journey = !error && data ? data as MarketplaceJourney : payload;
   writeLocal(journey);
   return { journey, cloud: !error };

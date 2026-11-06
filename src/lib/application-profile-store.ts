@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type ApplicationProfile = {
   user_id: string;
@@ -36,14 +36,14 @@ export function emptyApplicationProfile(userId:string):ApplicationProfile{return
 
 export async function loadApplicationProfile(userId:string){
   const local=readJson<ApplicationProfile>(profileKey(userId),emptyApplicationProfile(userId));
-  const{data,error}=await supabase.from('application_profiles').select('*').eq('user_id',userId).maybeSingle();
+  const{data,error}=await apiCall<ApplicationProfile|null>('/v1/opportunities/profile');
   if(error||!data)return local;
   const profile=data as ApplicationProfile;writeJson(profileKey(userId),profile);return profile;
 }
 
 export async function saveApplicationProfile(profile:ApplicationProfile){
   const next={...profile,updated_at:new Date().toISOString()};writeJson(profileKey(profile.user_id),next);
-  const{data,error}=await supabase.from('application_profiles').upsert(next,{onConflict:'user_id'}).select('*').single();
+  const{data,error}=await apiCall<ApplicationProfile>('/v1/opportunities/profile',{method:'PUT',body:JSON.stringify(next)});
   const saved=!error&&data?data as ApplicationProfile:next;writeJson(profileKey(profile.user_id),saved);return saved;
 }
 
@@ -65,7 +65,7 @@ export async function saveApplicationReminders(userId:string,opportunityId:strin
   const base=new Date(submittedAt).getTime();
   const reminders=choices.map((choice,index)=>({id:`${opportunityId}-${choice.days}-${index}`,user_id:userId,opportunity_id:opportunityId,label:choice.label,days_after_submission:choice.days,enabled:choice.enabled,scheduled_for:new Date(base+choice.days*24*60*60*1000).toISOString()}));
   writeJson(reminderKey(userId),[...reminders,...existing]);
-  const payload=reminders.map(({id:_,...item})=>item);
-  const{data,error}=await supabase.from('application_reminders').upsert(payload,{onConflict:'user_id,opportunity_id,days_after_submission'}).select('*');
+  const payload=reminders.map(({label,days_after_submission,enabled,scheduled_for})=>({label,days_after_submission,enabled,scheduled_for}));
+  const{data,error}=await apiCall<ApplicationReminder[]>('/v1/opportunities/reminders',{method:'PUT',body:JSON.stringify({opportunityId,reminders:payload})});
   return!error&&data?data as ApplicationReminder[]:reminders;
 }

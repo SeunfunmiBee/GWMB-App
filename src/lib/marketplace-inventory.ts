@@ -1,4 +1,5 @@
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
+import { subscribeToRefresh } from '@/lib/live';
 
 export type MarketplaceContentType = 'course' | 'event' | 'mentorship' | 'opportunity' | 'resource' | 'career_tool' | 'pathway';
 export type MarketplaceAvailability = 'draft' | 'scheduled' | 'available' | 'full' | 'closed' | 'archived';
@@ -66,12 +67,8 @@ export function isInventoryItemAvailable(item: MarketplaceInventoryItem, now = n
 
 export async function loadMarketplaceInventory() {
   const local = readLocal();
-  const [inventoryResult,contentResult,sessionResult,mentorResult]=await Promise.all([
-    supabase.from('marketplace_inventory').select('*').eq('published',true).in('availability',['available','scheduled']).order('priority',{ascending:false}),
-    supabase.from('content_items').select('*').eq('status','published').eq('visible',true).in('area',['courses','resources','opportunities','events','grow-learning']),
-    supabase.from('mentorship_sessions').select('id,title,mentorship_type,industry,subfield,description,starts_at,registration_deadline,capacity,access_level,replay_url,resources,eligibility,status,timezone,recording_allowed,published_at,completed_at,cancelled_at,audience_type,audience_fields,audience_subfields,selected_user_ids,notification_channels,distribution_surfaces,feature_level,mentor_confirmed_at,attendance_recorded_at,replay_expected,created_at,updated_at').in('status',['published','upcoming','live']),
-    supabase.from('mentors').select('*').eq('active',true).eq('publish_public_profile',true),
-  ]);
+  const{data,error}=await apiCall<{inventory:MarketplaceInventoryItem[];content:Record<string,unknown>[];sessions:Record<string,unknown>[];mentors:Record<string,unknown>[]}>('/v1/marketplace/inventory');
+  const inventoryResult={data:data?.inventory??[],error};const contentResult={data:data?.content??[],error};const sessionResult={data:data?.sessions??[],error};const mentorResult={data:data?.mentors??[],error};
   const cloudItems=(inventoryResult.data??[]) as MarketplaceInventoryItem[];
   const dynamicItems=[
     ...(contentResult.data??[]).map(contentItemToInventory),
@@ -119,13 +116,7 @@ function mentorToInventory(mentor:Record<string,unknown>):MarketplaceInventoryIt
 }
 
 export function subscribeToMarketplaceChanges(onChange:()=>void){
-  const channel=supabase.channel(`marketplace-home-${Math.random().toString(36).slice(2)}`)
-    .on('postgres_changes',{event:'*',schema:'public',table:'content_items'},onChange)
-    .on('postgres_changes',{event:'*',schema:'public',table:'marketplace_inventory'},onChange)
-    .on('postgres_changes',{event:'*',schema:'public',table:'mentorship_sessions'},onChange)
-    .on('postgres_changes',{event:'*',schema:'public',table:'mentors'},onChange)
-    .subscribe();
-  return()=>{void supabase.removeChannel(channel)};
+  return subscribeToRefresh(onChange);
 }
 
 export function freshMarketplaceItems(items:MarketplaceInventoryItem[],input:{interests:string[];isMember:boolean;excludeRoutes?:string[];now?:Date}){

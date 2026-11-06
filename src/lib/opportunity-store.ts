@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { ApiError, apiCall } from '@/lib/auth';
 import type { Opportunity } from '@/data/opportunities';
 
 export type ApplicationStatus = 'draft' | 'pending_sync' | 'submitted' | 'under_review' | 'successful' | 'unsuccessful';
@@ -37,7 +37,7 @@ function writeJson(key: string, value: unknown) {
 const cleanText=(value:unknown,fallback='')=>typeof value==='string'?value:fallback;
 
 export async function loadOpportunityApplicationContext(opportunityId:string):Promise<{context:OpportunityApplicationContext|null;error:string|null}> {
-  const{data,error}=await supabase.rpc('get_opportunity_application_context',{p_opportunity_id:opportunityId});
+  const{data,error}=await apiCall<Record<string,unknown>|null>(`/v1/opportunities/${encodeURIComponent(opportunityId)}/context`);
   if(error)return{context:null,error:error.message};
   if(!data||typeof data!=='object')return{context:null,error:'This opportunity is not available for applications.'};
   const record=data as Record<string,unknown>;
@@ -64,7 +64,8 @@ export async function loadOpportunityApplicationContext(opportunityId:string):Pr
 export async function loadSavedOpportunityIds(userId?: string | null) {
   const local = readJson<string[]>(savedKey(userId), []);
   if (!userId) return local;
-  const { data, error } = await supabase.from('saved_opportunities').select('opportunity_id').eq('user_id', userId);
+  const { data: savedIds, error } = await apiCall<string[]>('/v1/opportunities/saved');
+  const data = (savedIds ?? []).map((opportunity_id) => ({ opportunity_id }));
   if (error) return local;
   const ids = (data ?? []).map((row) => row.opportunity_id as string);
   writeJson(savedKey(userId), ids);
@@ -76,14 +77,13 @@ export async function setOpportunitySaved(userId: string | null | undefined, opp
   const next = saved ? Array.from(new Set([...current, opportunityId])) : current.filter((id) => id !== opportunityId);
   writeJson(savedKey(userId), next);
   if (!userId) return;
-  if (saved) await supabase.from('saved_opportunities').upsert({ user_id:userId, opportunity_id:opportunityId }, { onConflict:'user_id,opportunity_id' });
-  else await supabase.from('saved_opportunities').delete().eq('user_id', userId).eq('opportunity_id', opportunityId);
+  await apiCall(`/v1/opportunities/saved/${encodeURIComponent(opportunityId)}`, { method: saved ? 'PUT' : 'DELETE' });
 }
 
 export async function loadOpportunityApplications(userId: string) {
   await retryPendingOpportunityApplications(userId);
   const local = readJson<OpportunityApplication[]>(applicationsKey(userId), []);
-  const { data, error } = await supabase.from('opportunity_applications').select('*').eq('user_id', userId).order('submitted_at', { ascending:false });
+  const { data, error } = await apiCall<OpportunityApplication[]>('/v1/opportunities/applications');
   if (error) return { applications:local, cloud:false };
   const cloudApplications = (data ?? []) as OpportunityApplication[];
   const localOnly = local.filter((item) => ['draft','pending_sync'].includes(item.status) && !cloudApplications.some((cloud) => cloud.opportunity_id === item.opportunity_id));
@@ -99,7 +99,7 @@ export async function saveOpportunityDraft(input:{userId:string;opportunityId:st
   const draft:OpportunityApplication={id:current?.id??`draft-${input.opportunityId}-${Date.now()}`,user_id:input.userId,opportunity_id:input.opportunityId,portfolio_url:input.portfolioUrl||null,motivation:input.motivation,status:'draft',submitted_at:current?.submitted_at??now,updated_at:now,cv_record_id:input.cvRecordId??null,cv_snapshot:null,completion_percent:input.completionPercent};
   writeJson(applicationsKey(input.userId),[draft,...existing.filter(item=>item.id!==current?.id)]);
   const payload={user_id:input.userId,opportunity_id:input.opportunityId,portfolio_url:input.portfolioUrl||null,motivation:input.motivation,status:'draft' as const,submitted_at:current?.submitted_at??now,updated_at:now,cv_record_id:input.cvRecordId??null,cv_snapshot:null,completion_percent:input.completionPercent};
-  const{data,error}=await supabase.from('opportunity_applications').upsert(payload,{onConflict:'user_id,opportunity_id'}).select('*').single();
+  const{data,error}=await apiCall<OpportunityApplication>(`/v1/opportunities/${encodeURIComponent(input.opportunityId)}/draft`,{method:'PUT',body:JSON.stringify({portfolio_url:payload.portfolio_url,motivation:payload.motivation,cv_record_id:payload.cv_record_id,completion_percent:payload.completion_percent})});
   if(!error&&data){const saved=data as OpportunityApplication;writeJson(applicationsKey(input.userId),[saved,...existing.filter(item=>item.opportunity_id!==input.opportunityId)]);return saved}
   return draft;
 }
@@ -109,21 +109,16 @@ export async function submitOpportunityApplication(input:{userId:string;opportun
   if (existing.some((item) => item.opportunity_id === input.opportunityId && !['draft','pending_sync'].includes(item.status))) return { ok:false as const, duplicate:true as const, pending:false as const, error:null };
   const now = new Date().toISOString();
   let cvSnapshot=input.cvSnapshot??null;
-  if(input.cvRecordId){const{data:version}=await supabase.from('cv_records').select('id,name,target_role,opportunity_type,template,original_file_path,generated_file_path,structured_data,updated_at').eq('id',input.cvRecordId).eq('user_id',input.userId).maybeSingle();if(version)cvSnapshot=version as Record<string,unknown>}
-  const { data, error } = await supabase.rpc('submit_opportunity_application',{
-    p_opportunity_id:input.opportunityId,
-    p_portfolio_url:input.portfolioUrl||null,
-    p_motivation:input.motivation,
-    p_cv_record_id:input.cvRecordId??null,
-    p_cv_snapshot:cvSnapshot,
-  });
+  
+  const { data, error } = await submitToApi(input.opportunityId, { portfolioUrl: input.portfolioUrl, motivation: input.motivation, cvRecordId: input.cvRecordId });
   if (!error && data) {
     const next = [data as OpportunityApplication, ...existing.filter(item=>!(item.opportunity_id===input.opportunityId&&['draft','pending_sync'].includes(item.status)))];
     writeJson(applicationsKey(input.userId), next);
     return { ok:true as const, duplicate:false as const, pending:false as const, application:data as OpportunityApplication, error:null };
   }
-  if (error?.code === '23505'||/already applied/i.test(error?.message??'')) return { ok:false as const, duplicate:true as const, pending:false as const, error };
-  const retryable=!error?.code||/fetch|network|connection|timeout|offline/i.test(error.message??'');
+  if (/already applied/i.test(error?.message??'')) return { ok:false as const, duplicate:true as const, pending:false as const, error };
+  // Only network failures (no HTTP status) are queued for retry; the server rejected anything with a status.
+  const retryable=!(error instanceof ApiError);
   if(!retryable)return{ok:false as const,duplicate:false as const,pending:false as const,error};
   const reference=`PENDING-${Date.now().toString(36).toUpperCase()}`;
   const fallback:OpportunityApplication={id:`pending-${Date.now()}`,user_id:input.userId,opportunity_id:input.opportunityId,portfolio_url:input.portfolioUrl||null,motivation:input.motivation,status:'pending_sync',submitted_at:now,updated_at:now,cv_record_id:input.cvRecordId??null,cv_snapshot:cvSnapshot,completion_percent:100,submission_reference:reference,pending_payload:{portfolioUrl:input.portfolioUrl,motivation:input.motivation,cvRecordId:input.cvRecordId,cvSnapshot}};
@@ -138,19 +133,23 @@ export async function retryPendingOpportunityApplications(userId:string){
   let next=[...current];
   for(const item of pending){
     const payload=item.pending_payload!;
-    const{data,error}=await supabase.rpc('submit_opportunity_application',{p_opportunity_id:item.opportunity_id,p_portfolio_url:payload.portfolioUrl||null,p_motivation:payload.motivation,p_cv_record_id:payload.cvRecordId??null,p_cv_snapshot:payload.cvSnapshot??null});
+    const{data,error}=await submitToApi(item.opportunity_id,{portfolioUrl:payload.portfolioUrl,motivation:payload.motivation,cvRecordId:payload.cvRecordId});
     if(!error&&data)next=[data as OpportunityApplication,...next.filter(value=>value.id!==item.id&&value.opportunity_id!==item.opportunity_id)];
   }
   writeJson(applicationsKey(userId),next);
   return next;
 }
 
+function submitToApi(opportunityId:string,input:{portfolioUrl?:string|null;motivation:string;cvRecordId?:string|null}){
+  return apiCall<OpportunityApplication>(`/v1/opportunities/${encodeURIComponent(opportunityId)}/submit`,{method:'POST',body:JSON.stringify({portfolioUrl:input.portfolioUrl||null,motivation:input.motivation,cvRecordId:input.cvRecordId??null})});
+}
+
 export async function loadAdminOpportunityApplications(){
-  const{data,error}=await supabase.from('opportunity_applications').select('*,applicant:profiles!opportunity_applications_profile_fkey(full_name,city_club)').order('submitted_at',{ascending:false});
+  const{data,error}=await apiCall<OpportunityApplication[]>('/v1/admin/opportunities/applications');
   if(error)throw error;return(data??[]) as OpportunityApplication[];
 }
 
 export async function updateOpportunityApplicationStatus(id:string,status:Exclude<ApplicationStatus,'draft'|'pending_sync'>){
-  const{data,error}=await supabase.from('opportunity_applications').update({status,updated_at:new Date().toISOString()}).eq('id',id).select('*').single();
+  const{data,error}=await apiCall<OpportunityApplication>(`/v1/admin/opportunities/applications/${id}`,{method:'PATCH',body:JSON.stringify({status})});
   if(error)throw error;return data as OpportunityApplication;
 }

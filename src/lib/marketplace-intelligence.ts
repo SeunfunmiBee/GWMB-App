@@ -11,7 +11,7 @@ import {
 } from '@/lib/marketplace-inventory';
 import type { MarketplaceJourney } from '@/lib/marketplace-journey';
 import type { OpportunityApplication } from '@/lib/opportunity-store';
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 
 export type CareerClarity = 'unknown' | 'exploring' | 'selected' | 'established';
 export type KnowledgeReadiness = 'unknown' | 'limited' | 'foundational' | 'strong';
@@ -152,7 +152,7 @@ function mergeVerifiedEvidence(profile: MarketplaceReadinessProfile, input: Pick
 
 export async function loadReadinessProfile(userId: string) {
   const local = readLocal(readinessKey(userId), emptyReadinessProfile(userId));
-  const { data, error } = await supabase.from('marketplace_readiness_profiles').select('*').eq('user_id', userId).maybeSingle();
+  const { data, error } = await apiCall<MarketplaceReadinessProfile | null>('/v1/marketplace/readiness');
   if (error || !data) return { profile: local, cloud: false };
   const profile = data as MarketplaceReadinessProfile;
   writeLocal(readinessKey(userId), profile);
@@ -162,7 +162,7 @@ export async function loadReadinessProfile(userId: string) {
 export async function saveReadinessPatch(userId: string, patch: Partial<MarketplaceReadinessProfile>) {
   const current = (await loadReadinessProfile(userId)).profile;
   const payload = { ...current, ...patch, user_id: userId, updated_at: new Date().toISOString() };
-  const { data, error } = await supabase.from('marketplace_readiness_profiles').upsert(payload, { onConflict: 'user_id' }).select('*').single();
+  const { data, error } = await apiCall<MarketplaceReadinessProfile>('/v1/marketplace/readiness', { method: 'PUT', body: JSON.stringify(payload) });
   const profile = !error && data ? data as MarketplaceReadinessProfile : payload;
   writeLocal(readinessKey(userId), profile);
   return { profile, cloud: !error };
@@ -170,7 +170,7 @@ export async function saveReadinessPatch(userId: string, patch: Partial<Marketpl
 
 export async function loadRecommendationFeedback(userId: string) {
   const local = readLocal<{ recommendation_key: string; action: RecommendationFeedbackAction }[]>(feedbackKey(userId), []);
-  const { data, error } = await supabase.from('marketplace_recommendation_feedback').select('recommendation_key,action').eq('user_id', userId).order('created_at', { ascending: false });
+  const { data, error } = await apiCall<{ recommendation_key: string; action: RecommendationFeedbackAction }[]>('/v1/marketplace/feedback');
   if (error) return local;
   const feedback = (data ?? []) as { recommendation_key: string; action: RecommendationFeedbackAction }[];
   writeLocal(feedbackKey(userId), feedback);
@@ -181,11 +181,11 @@ export async function recordRecommendationFeedback(userId: string, recommendatio
   const current = readLocal<{ recommendation_key: string; action: RecommendationFeedbackAction }[]>(feedbackKey(userId), []);
   const entry = { recommendation_key: recommendationKey, action };
   writeLocal(feedbackKey(userId), [entry, ...current]);
-  await supabase.from('marketplace_recommendation_feedback').insert({ user_id: userId, recommendation_key: recommendationKey, action });
+  await apiCall('/v1/marketplace/feedback', { method: 'POST', body: JSON.stringify({ recommendation_key: recommendationKey, action }) });
 }
 
 export async function loadServerMarketplaceIntelligence() {
-  const { data, error } = await supabase.rpc('get_marketplace_recommendation');
+  const { data, error } = await apiCall<Record<string, unknown>>('/v1/marketplace/recommendation');
   if (error || !data || typeof data !== 'object') return { intelligence: null, server: false };
   const response = data as Partial<MarketplaceIntelligence> & { configured?: boolean };
   if (response.configured === false || !response.primary || !response.stage || !Array.isArray(response.forYou)) {

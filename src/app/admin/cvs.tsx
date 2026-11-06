@@ -15,7 +15,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import type { CvAnalysis, CvRecord } from "@/lib/cv-store";
 import { createSignedUrl } from "@/lib/storage";
-import { supabase } from "@/lib/supabase";
+import { apiCall } from "@/lib/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors, fonts } from "@/theme";
 
@@ -30,11 +30,9 @@ export default function AdminCvs() {
   const [hasMore, setHasMore] = useState(false);
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, count } = await supabase
-      .from("cv_records")
-      .select("*", { count: "exact" })
-      .order("updated_at", { ascending: false })
-      .range(0, PAGE_SIZE - 1);
+    const { data: page } = await apiCall<{ items: CvRecord[]; total: number }>(`/v1/admin/cvs?offset=0&limit=${PAGE_SIZE}`);
+    const data = page?.items;
+    const count = page?.total;
     setItems((data ?? []) as CvRecord[]);
     setTotal(count ?? 0);
     setHasMore((data?.length ?? 0) < (count ?? 0));
@@ -46,11 +44,9 @@ export default function AdminCvs() {
 
   async function loadMore() {
     setLoadingMore(true);
-    const { data, count } = await supabase
-      .from("cv_records")
-      .select("*", { count: "exact" })
-      .order("updated_at", { ascending: false })
-      .range(items.length, items.length + PAGE_SIZE - 1);
+    const { data: page } = await apiCall<{ items: CvRecord[]; total: number }>(`/v1/admin/cvs?offset=${items.length}&limit=${PAGE_SIZE}`);
+    const data = page?.items;
+    const count = page?.total;
     const next = (data ?? []) as CvRecord[];
     setItems((current) => [...current, ...next]);
     setTotal(count ?? total);

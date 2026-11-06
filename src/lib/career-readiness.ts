@@ -1,7 +1,6 @@
 import { listPublishedContent, type ContentItem } from "@/lib/admin-content";
 import { createSignedUrl } from "@/lib/storage";
-import { getUser } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { apiCall } from "@/lib/auth";
 
 export type ReviewType =
   "cv" | "linkedin" | "job_application" | "career_profile";
@@ -120,11 +119,7 @@ export const interviewQuestions: InterviewQuestion[] = [
 ];
 
 export async function loadInterviewQuestions() {
-  const { data, error } = await supabase
-    .from("career_practice_questions")
-    .select("id,category,question,guidance,framework,career_areas,sort_order")
-    .eq("active", true)
-    .order("sort_order");
+  const { data, error } = await apiCall<{ id: string; category: string; question: string; guidance: string; framework: string | null; career_areas: string[] }[]>("/v1/career/public/questions");
   return {
     questions:
       error || !data?.length
@@ -141,10 +136,7 @@ export async function loadInterviewQuestions() {
   };
 }
 export async function listAdminInterviewQuestions() {
-  const { data, error } = await supabase
-    .from("career_practice_questions")
-    .select("*")
-    .order("sort_order");
+  const { data, error } = await apiCall<unknown[]>("/v1/admin/career/questions");
   return {
     questions: (data ?? []) as (InterviewQuestion & {
       sort_order: number;
@@ -157,10 +149,7 @@ export async function listAdminInterviewQuestions() {
 export async function saveInterviewQuestion(
   input: InterviewQuestion & { sort_order?: number; active?: boolean },
 ) {
-  return supabase
-    .from("career_practice_questions")
-    .upsert(
-      {
+  return apiCall("/v1/admin/career/questions", { method: "PUT", body: JSON.stringify({
         id: input.id,
         category: input.category,
         question: input.question,
@@ -169,14 +158,10 @@ export async function saveInterviewQuestion(
         career_areas: input.careerAreas ?? [],
         sort_order: input.sort_order ?? 0,
         active: input.active ?? true,
-      },
-      { onConflict: "id" },
-    )
-    .select("*")
-    .single();
+      }) });
 }
 export async function deleteInterviewQuestion(id: string) {
-  return supabase.from("career_practice_questions").delete().eq("id", id);
+  return apiCall(`/v1/admin/career/questions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 function metadata(item: ContentItem) {
@@ -233,11 +218,7 @@ export async function loadCareerInventory() {
 }
 
 export async function loadReviewSubmissions(userId: string) {
-  const { data, error } = await supabase
-    .from("career_review_submissions")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+  const { data, error } = await apiCall<CareerReviewSubmission[]>("/v1/career/reviews");
   return { submissions: (data ?? []) as CareerReviewSubmission[], error };
 }
 export async function createReviewSubmission(
@@ -251,30 +232,10 @@ export async function createReviewSubmission(
     | "updated_at"
   >,
 ) {
-  return supabase.rpc("submit_career_review", {
-    p_review_type: input.review_type,
-    p_cv_record_id: input.cv_record_id,
-    p_uploaded_file_path: input.uploaded_file_path,
-    p_uploaded_file_name: input.uploaded_file_name,
-    p_linkedin_url: input.linkedin_url,
-    p_target_role: input.target_role,
-    p_company_name: input.company_name,
-    p_job_description_url: input.job_description_url,
-    p_job_description_text: input.job_description_text,
-    p_career_field: input.career_field,
-    p_career_stage: input.career_stage,
-    p_feedback_focus: input.feedback_focus,
-    p_clinic_event_id: input.clinic_event_id,
-    p_consent_authorized_review: input.consent_authorized_review,
-    p_consent_group_review: input.consent_group_review,
-    p_anonymize_for_session: input.anonymize_for_session,
-  });
+  return apiCall<CareerReviewSubmission>("/v1/career/reviews", { method: "POST", body: JSON.stringify(input) });
 }
 export async function loadPracticeResponses(userId: string) {
-  const { data, error } = await supabase
-    .from("career_practice_responses")
-    .select("*")
-    .eq("user_id", userId);
+  const { data, error } = await apiCall<PracticeResponse[]>("/v1/career/responses");
   return { responses: (data ?? []) as PracticeResponse[], error };
 }
 export async function savePracticeResponse(
@@ -282,41 +243,18 @@ export async function savePracticeResponse(
   questionId: string,
   responseText: string,
 ) {
-  return supabase
-    .from("career_practice_responses")
-    .upsert(
-      {
-        user_id: userId,
-        question_id: questionId,
-        response_text: responseText,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,question_id" },
-    )
-    .select("*")
-    .single();
+  return apiCall<PracticeResponse>(`/v1/career/responses/${encodeURIComponent(questionId)}`, { method: "PUT", body: JSON.stringify({ response_text: responseText }) });
 }
 export async function loadSavedCareerResources(userId: string) {
-  const { data, error } = await supabase
-    .from("career_saved_resources")
-    .select("content_id")
-    .eq("user_id", userId);
-  return { ids: (data ?? []).map((item) => String(item.content_id)), error };
+  const { data, error } = await apiCall<string[]>("/v1/career/saved-resources");
+  return { ids: data ?? [], error };
 }
 export async function toggleSavedCareerResource(
   userId: string,
   contentId: string,
   saved: boolean,
 ) {
-  return saved
-    ? supabase
-        .from("career_saved_resources")
-        .delete()
-        .eq("user_id", userId)
-        .eq("content_id", contentId)
-    : supabase
-        .from("career_saved_resources")
-        .insert({ user_id: userId, content_id: contentId });
+  return apiCall(`/v1/career/saved-resources/${encodeURIComponent(contentId)}`, { method: saved ? "DELETE" : "PUT" });
 }
 export async function listAdminReviewSubmissions(
   options: {
@@ -329,18 +267,12 @@ export async function listAdminReviewSubmissions(
   const page = Math.max(0, options.page ?? 0);
   const pageSize = Math.min(100, Math.max(10, options.pageSize ?? 25));
   const from = page * pageSize;
-  let request = supabase
-    .from("career_review_submissions")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false });
-  if (options.status && options.status !== "all")
-    request = request.eq("status", options.status);
-  const term = (options.query ?? "").replace(/[^a-zA-Z0-9 _-]/g, " ").trim();
-  if (term)
-    request = request.or(
-      `target_role.ilike.%${term}%,career_field.ilike.%${term}%,review_type.ilike.%${term}%`,
-    );
-  const { data, error, count } = await request.range(from, from + pageSize - 1);
+  const params = new URLSearchParams({ offset: String(from), limit: String(pageSize) });
+  if (options.status && options.status !== "all") params.set("status", options.status);
+  if (options.query?.trim()) params.set("q", options.query.trim());
+  const { data: page_, error } = await apiCall<{ items: CareerReviewSubmission[]; total: number }>(`/v1/admin/career/reviews?${params}`);
+  const data = page_?.items ?? [];
+  const count = page_?.total ?? 0;
   return {
     submissions: (data ?? []) as CareerReviewSubmission[],
     total: count ?? 0,
@@ -356,29 +288,10 @@ export async function loadAdminReviewCounts() {
     "reviewed",
     "not_selected",
   ];
-  const results = await Promise.all(
-    statuses.map((status) =>
-      supabase
-        .from("career_review_submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", status),
-    ),
-  );
+  const { data, error } = await apiCall<Record<ReviewStatus, number>>("/v1/admin/career/reviews/counts");
   return {
-    counts: statuses.reduce<Record<ReviewStatus, number>>(
-      (next, status, index) => ({
-        ...next,
-        [status]: results[index].count ?? 0,
-      }),
-      {
-        submitted: 0,
-        under_review: 0,
-        selected: 0,
-        reviewed: 0,
-        not_selected: 0,
-      },
-    ),
-    error: results.find((result) => result.error)?.error ?? null,
+    counts: statuses.reduce<Record<ReviewStatus, number>>((next, status) => ({ ...next, [status]: data?.[status] ?? 0 }), {} as Record<ReviewStatus, number>),
+    error,
   };
 }
 export async function updateReviewSubmission(
@@ -390,29 +303,14 @@ export async function updateReviewSubmission(
     anonymize_for_session?: boolean;
   },
 ) {
-  const {
-    data: { user },
-  } = await getUser();
-  return supabase
-    .from("career_review_submissions")
-    .update({
-      ...change,
-      reviewed_by: change.status === "reviewed" ? user?.id : undefined,
-    })
-    .eq("id", id)
-    .select("*")
-    .single();
+  return apiCall<CareerReviewSubmission>(`/v1/admin/career/reviews/${id}`, { method: "PATCH", body: JSON.stringify(change) });
 }
 export async function getReviewDocumentUrl(submission: CareerReviewSubmission) {
   if (submission.uploaded_file_path) {
     return createSignedUrl("private-cvs", submission.uploaded_file_path, 60 * 15);
   }
   if (submission.cv_record_id) {
-    const { data: cv, error } = await supabase
-      .from("cv_records")
-      .select("original_file_path,generated_file_path")
-      .eq("id", submission.cv_record_id)
-      .maybeSingle();
+    const { data: cv, error } = await apiCall<{ original_file_path: string | null; generated_file_path: string | null } | null>(`/v1/cvs/${submission.cv_record_id}/files`);
     if (error) return { url: null, error };
     const path = cv?.generated_file_path || cv?.original_file_path;
     if (!path) return { url: null, error: null };

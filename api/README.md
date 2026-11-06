@@ -30,13 +30,13 @@ Each area: endpoints with the old access rules enforced in code, tests in `api/t
 | --- | --- | --- |
 | Account & membership | `account.ts`, `/v1/me`, `/v1/membership` | Done |
 | Content, courses & events | `admin-content.ts`, `content-runtime.ts`, `course-progress.ts`, `event-store.ts`, `calendar-store.ts`, `advanced-program.ts` | Done (Google Calendar calls wait for phase 4) |
-| Opportunities, CVs & career | `opportunity-store.ts`, `application-profile-store.ts`, `cv-store.ts`, `career-readiness.ts`, `marketplace-*.ts` | Next |
-| Mentorship | `mentorship-store.ts`, admin mentorship screens | |
+| Opportunities, CVs & career | `opportunity-store.ts`, `application-profile-store.ts`, `cv-store.ts`, `career-readiness.ts`, `marketplace-*.ts` | Done (CV parsing and profile import wait for phase 4) |
+| Mentorship | `mentorship-store.ts`, admin mentorship screens | Next |
 | Community & chapters | `clique-store.ts`, `chapter-admin.ts`, `community-location.tsx`, `volunteer.tsx` | |
 | Notifications | `notification-store.ts`, `use-unread-notifications.ts`, admin notifications | |
 | Admin operations | `launch-operations.ts`, `approvals.tsx`, `FeatureFlagProvider.tsx`, `local-admins.tsx`, `integrations.tsx` | |
 
-Run the API tests with `npm test` in `api/` (33 tests).
+Run the API tests with `npm test` in `api/` (51 tests).
 
 Rows go through `src/db.ts`: booleans are stored `0/1`, JSON as text and timestamps as UTC ISO text; `src/db-columns.ts` (generated) says which column is which.
 
