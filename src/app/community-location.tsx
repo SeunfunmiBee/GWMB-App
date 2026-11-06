@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
 import { useAuth } from '@/providers/AuthProvider';
 import { colors, fonts } from '@/theme';
 
@@ -21,13 +21,13 @@ export default function CommunityLocationScreen(){
   const ready=Boolean(location.trim()&&(!needsCampus||campus.trim()));
   const match=useMemo(()=>needsCampus?`${campus||'Your campus'} Student Chapter`:`${location||'Your city'} City Chapter`,[campus,location,needsCampus]);
 
-  useEffect(()=>{if(!user)return;let active=true;supabase.from('community_preferences').select('member_type,location,campus').eq('user_id',user.id).maybeSingle().then(({data})=>{if(!active||!data)return;setType((data.member_type==='student'?'Student':data.member_type==='professional'?'Professional':'Graduate'));setLocation(data.location??'');setCampus(data.campus??'')});return()=>{active=false}},[user]);
+  useEffect(()=>{if(!user)return;let active=true;apiCall<{member_type:string;location:string|null;campus:string|null}|null>('/v1/community/preferences').then(({data})=>{if(!active||!data)return;setType((data.member_type==='student'?'Student':data.member_type==='professional'?'Professional':'Graduate'));setLocation(data.location??'');setCampus(data.campus??'')});return()=>{active=false}},[user]);
 
   async function save(){
     if(!ready)return;
     const preference={location:location.trim(),campus:campus.trim(),type};
     try{globalThis.localStorage?.setItem('gwmb-community-location',JSON.stringify(preference))}catch{/* Best-effort offline persistence. */}
-    if(user)await supabase.from('community_preferences').upsert({user_id:user.id,member_type:type.toLowerCase(),location:preference.location,campus:preference.campus||null},{onConflict:'user_id'});
+    if(user)await apiCall('/v1/community/preferences',{method:'PUT',body:JSON.stringify({member_type:type.toLowerCase(),location:preference.location,campus:preference.campus||null})});
     setSaved(true);
   }
 

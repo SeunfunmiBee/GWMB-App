@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import { AppStateView } from "@/components/states/AppStateView";
-import { supabase } from "@/lib/supabase";
+import { apiCall } from "@/lib/auth";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors, fonts } from "@/theme";
 
@@ -57,16 +57,16 @@ export default function VolunteerScreen() {
       return;
     }
     setSubmitting(true);
-    const { error: submissionError } = await supabase.rpc(
-      "submit_volunteer_application",
-      {
-        p_full_name: fullName.trim(),
-        p_location: location.trim(),
-        p_interest_area: interest,
-        p_availability: availability.trim(),
-        p_motivation: motivation.trim(),
-      },
-    );
+    const { error: submissionError } = await apiCall("/v1/community/volunteer", {
+      method: "POST",
+      body: JSON.stringify({
+        full_name: fullName.trim(),
+        location: location.trim(),
+        interest_area: interest,
+        availability: availability.trim(),
+        motivation: motivation.trim(),
+      }),
+    });
     setSubmitting(false);
     if (submissionError) {
       setError(submissionError.message);
