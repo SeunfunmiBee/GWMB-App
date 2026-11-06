@@ -1,4 +1,5 @@
 // Calendar feeds: `get_my_calendar_feed` and `get_admin_calendar_feed` (202610210004).
+import { publicMetadata, readableLevels } from '../access';
 import { isoTime } from '../db';
 import { requireAdmin, requireUser, router } from '../http';
 import type { Env } from '../env';
@@ -29,6 +30,9 @@ calendar.get('/', async (c) => {
 
 async function personalFeed(env: Env, userId: string, from: string, to: string): Promise<FeedItem[]> {
   const db = env.DB;
+  const levels = await readableLevels(env, userId);
+  const inLevels = (column: string) => `${column} in (${levels.map(() => '?').join(', ')})`;
+  const now = new Date().toISOString();
   const [journey, saved, orphaned, content, mentorSaved, mentorOpen, interests, local] = await db.batch([
     db.prepare('select interests, primary_goal from marketplace_journeys where user_id = ?').bind(userId),
     db.prepare(`select c.*, r.status as registration_status from event_registrations r join content_items c on c.slug = r.event_id or c.id = r.event_id
@@ -36,12 +40,14 @@ async function personalFeed(env: Env, userId: string, from: string, to: string):
     db.prepare(`select * from event_registrations r where r.user_id = ? and r.status <> 'cancelled' and r.event_starts_at between ? and ?
                 and not exists (select 1 from content_items c where c.slug = r.event_id or c.id = r.event_id)`).bind(userId, from, to),
     db.prepare(`select * from content_items c where c.status = 'published' and c.visible = 1 and c.starts_at between ? and ?
+                and (c.publish_at is null or c.publish_at <= ?) and ${inLevels('c.access_level')}
                 and c.content_type in ('event', 'webinar', 'live_session', 'course')
-                and not exists (select 1 from event_registrations r where r.user_id = ? and r.status <> 'cancelled' and (r.event_id = c.slug or r.event_id = c.id))`).bind(from, to, userId),
+                and not exists (select 1 from event_registrations r where r.user_id = ? and r.status <> 'cancelled' and (r.event_id = c.slug or r.event_id = c.id))`).bind(from, to, now, ...levels, userId),
     db.prepare(`select m.*, r.status as registration_status from mentorship_registrations r join mentorship_sessions m on m.id = r.session_id
                 where r.user_id = ? and r.status <> 'cancelled' and m.starts_at between ? and ?`).bind(userId, from, to),
     db.prepare(`select * from mentorship_sessions m where m.status in ('published', 'upcoming', 'live') and m.starts_at between ? and ?
-                and not exists (select 1 from mentorship_registrations r where r.user_id = ? and r.session_id = m.id and r.status <> 'cancelled')`).bind(from, to, userId),
+                and ${inLevels('m.access_level')}
+                and not exists (select 1 from mentorship_registrations r where r.user_id = ? and r.session_id = m.id and r.status <> 'cancelled')`).bind(from, to, ...levels, userId),
     db.prepare('select industry from mentorship_industry_interests where user_id = ? and notifications_enabled = 1').bind(userId),
     db.prepare(`select a.*, ch.name as chapter_name, ch.kind as chapter_kind from local_activities a join chapters ch on ch.id = a.chapter_id
                 where a.status = 'published' and a.starts_at between ? and ?
@@ -53,7 +59,7 @@ async function personalFeed(env: Env, userId: string, from: string, to: string):
   const matches = (text: string, terms: string[]) => terms.some((t) => t && text.toLowerCase().includes(t));
   const items: FeedItem[] = [];
   const contentItem = (row: Json, relevance: FeedItem['relevance'], extra: Json): FeedItem => {
-    const meta = parse(row.metadata);
+    const meta = publicMetadata(parse(row.metadata));
     const course = row.area === 'courses' || row.content_type === 'course';
     return {
       source_type: relevance === 'saved' || !course ? 'content_event' : 'content_course', source_id: String(row.id), title: String(row.title),

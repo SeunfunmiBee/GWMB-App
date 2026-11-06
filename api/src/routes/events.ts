@@ -2,6 +2,7 @@
 // `register_for_event` (202610290001) and `get_registered_event_meeting` (202610290005).
 // Confirmation and reminder notifications are SQLite triggers in 0005_notification_triggers.sql.
 import { z } from 'zod';
+import { readableLevels } from '../access';
 import { decode, decodeAll } from '../db';
 import { body, HttpError, nowIso, requireUser, router } from '../http';
 
@@ -32,9 +33,10 @@ events.post('/:eventId/register', async (c) => {
   const now = nowIso();
   const event = await c.env.DB.prepare("select * from content_items where area = 'events' and (id = ?1 or slug = ?1)").bind(c.req.param('eventId')).first<EventRow>();
   if (!event || event.status !== 'published' || !event.visible || (event.publish_at && event.publish_at > now)) throw new HttpError(404, 'This event is not available');
-  if (event.access_level === 'members') {
-    const verified = await c.env.DB.prepare("select 1 from memberships where user_id = ? and status = 'verified'").bind(userId).first();
-    if (!verified) throw new HttpError(403, 'Verified GWMB membership is required');
+  const levels = await readableLevels(c.env, userId);
+  if (!levels.includes(event.access_level as never)) {
+    if (event.access_level === 'members') throw new HttpError(403, 'Verified GWMB membership is required');
+    throw new HttpError(404, 'This event is not available');
   }
   let meta: Record<string, unknown> = {};
   try { meta = JSON.parse(event.metadata || '{}'); } catch { /* treat as empty */ }
@@ -75,12 +77,14 @@ const JOIN_OPENS_MS = 30 * 60_000;
 const DEFAULT_LENGTH_MS = 4 * 60 * 60_000;
 
 events.get('/:eventId/meeting', async (c) => {
+  const levels = await readableLevels(c.env, c.get('userId'));
   const event = await c.env.DB.prepare(
     `select c.starts_at, c.ends_at, m.meeting_url from content_items c
      left join content_meetings m on m.content_id = c.id and m.status = 'ready'
      where c.area = 'events' and (c.id = ?1 or c.slug = ?1) and c.status = 'published' and c.visible = 1
+       and c.access_level in (${levels.map((_, i) => `?${i + 3}`).join(', ')})
        and exists (select 1 from event_registrations r where r.event_id = c.id and r.user_id = ?2 and r.status = 'registered')`,
-  ).bind(c.req.param('eventId'), c.get('userId')).first<{ starts_at: string | null; ends_at: string | null; meeting_url: string | null }>();
+  ).bind(c.req.param('eventId'), c.get('userId'), ...levels).first<{ starts_at: string | null; ends_at: string | null; meeting_url: string | null }>();
   if (!event?.starts_at) return c.json(null);
   const start = Date.parse(event.starts_at);
   const opens = start - JOIN_OPENS_MS;

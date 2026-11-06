@@ -180,3 +180,38 @@ describe('calendar feeds', () => {
     expect((await api<unknown[]>(admin, 'GET', '/v1/admin/calendar')).body.length).toBeGreaterThan(0);
   });
 });
+
+describe('private fields and access levels (security review)', () => {
+  it('never returns the private meeting link in content listings or calendars', async () => {
+    const admin = await createUser({ admin: true });
+    const user = await createUser();
+    const event = await publish(admin, { featured: true }, { registration_url: 'https://tickets.example/x' });
+    const listed = await api<{ id: string; metadata: Record<string, unknown> }[]>(user, 'GET', '/v1/content?area=events');
+    const item = listed.body.find((i) => i.id === event.id);
+    expect(item?.metadata.meeting_url).toBeUndefined();
+    expect(item?.metadata.registration_url).toBe('https://tickets.example/x');
+    const feed = await api<{ source_id: string; metadata: Record<string, unknown> }[]>(user, 'GET', '/v1/calendar');
+    expect(feed.body.find((i) => i.source_id === event.id)?.metadata.meeting_url).toBeUndefined();
+    const adminView = await api<{ metadata: Record<string, unknown> }>(admin, 'GET', `/v1/admin/content/${event.id}`);
+    expect(adminView.body.metadata.meeting_url).toBe('https://meet.example/abc');
+  });
+
+  it('does not recommend members-only items to non-members', async () => {
+    const admin = await createUser({ admin: true });
+    const user = await createUser();
+    const member = await createUser();
+    await env.DB.prepare("update memberships set status = 'verified' where user_id = ?").bind(member.id).run();
+    const event = await publish(admin, { access_level: 'members', featured: true });
+    const ids = async (u: TestUser) => (await api<{ source_id: string }[]>(u, 'GET', '/v1/calendar')).body.map((i) => i.source_id);
+    expect(await ids(user)).not.toContain(event.id);
+    expect(await ids(member)).toContain(event.id);
+  });
+
+  it('refuses registration for admin-only events', async () => {
+    const admin = await createUser({ admin: true });
+    const user = await createUser();
+    const event = await publish(admin, { access_level: 'admin' });
+    const res = await api(user, 'POST', `/v1/events/${event.id}/register`, { fullName: 'Ngozi Eze', email: 'n@example.com' });
+    expect(res.status).toBe(404);
+  });
+});

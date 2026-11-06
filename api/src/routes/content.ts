@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { validatePublication } from '../content-rules';
 import { decode, decodeAll, encode, insertRow, updateRow } from '../db';
 import { body, HttpError, nowIso, optionalUser, requireAdmin, requireUser, router } from '../http';
-import { isAdmin, isVerifiedMember } from '../identity';
+import { publicContent, readableLevels } from '../access';
 import type { Env } from '../env';
 
 type ContentRow = Record<string, unknown> & { id: string; status: string; content_type: string; title: string; metadata: Record<string, unknown> };
@@ -15,14 +15,6 @@ type ContentRow = Record<string, unknown> & { id: string; status: string; conten
 
 export const content = router();
 content.use('*', optionalUser);
-
-/** Access levels the caller may read (anon: open; signed in: open+account, +members when verified). */
-async function readableLevels(env: Env, userId: string | undefined) {
-  if (!userId) return ['open'];
-  const caller = { kind: 'user' as const, id: userId, email: '' };
-  if (await isAdmin(env, caller)) return ['open', 'account', 'members', 'admin'];
-  return (await isVerifiedMember(env, caller)) ? ['open', 'account', 'members'] : ['open', 'account'];
-}
 
 content.get('/', async (c) => {
   const area = c.req.query('area');
@@ -33,7 +25,7 @@ content.get('/', async (c) => {
        and (publish_at is null or publish_at <= ?) and access_level in (${levels.map(() => '?').join(', ')})
      order by sort_order`,
   ).bind(area, nowIso(), ...levels).all();
-  return c.json(decodeAll('content_items', results));
+  return c.json(decodeAll<{ metadata: unknown }>('content_items', results).map(publicContent));
 });
 
 // ---------- admin ----------
