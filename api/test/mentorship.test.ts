@@ -47,6 +47,17 @@ describe('public mentorship reads', () => {
     expect(mentors.body.every((m) => !('admin_notes' in m))).toBe(true);
   });
 
+  it('hides inactive or unpublished mentors from public profile and session reads', async () => {
+    const admin = await createUser({ admin: true });
+    const inactive = await mentor(admin, { active: false });
+    const unpublished = await mentor(admin, { publish_public_profile: false });
+    const sessionId = await session(admin, { mentor_id: inactive });
+    await env.DB.prepare('insert or ignore into mentorship_session_mentors (session_id, mentor_id) values (?, ?)').bind(sessionId, unpublished).run();
+    expect((await api(null, 'GET', `/v1/mentorship/mentors/${inactive}`)).body).toBeNull();
+    const found = (await api<{ id: string; mentors: { id: string }[] }[]>(null, 'GET', '/v1/mentorship/sessions')).body.find((s) => s.id === sessionId);
+    expect(found?.mentors).toEqual([]);
+  });
+
   it('shows members-only sessions to verified members only', async () => {
     const admin = await createUser({ admin: true });
     const sessionId = await session(admin, { access_level: 'members' });

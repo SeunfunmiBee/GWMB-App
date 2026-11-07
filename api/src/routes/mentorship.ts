@@ -33,7 +33,7 @@ mentorship.get('/mentors', optionalUser, async (c) => {
 });
 
 mentorship.get('/mentors/:id', optionalUser, async (c) => {
-  const row = await c.env.DB.prepare(`select ${MENTOR_COLUMNS} from mentors where id = ? and publish_public_profile = 1`).bind(c.req.param('id')).first();
+  const row = await c.env.DB.prepare(`select ${MENTOR_COLUMNS} from mentors where id = ? and active = 1 and publish_public_profile = 1`).bind(c.req.param('id')).first();
   return c.json(decode('mentors', row));
 });
 
@@ -43,7 +43,8 @@ mentorship.get('/sessions', optionalUser, async (c) => {
   const [sessions, links] = await db.batch([
     db.prepare(`select ${SESSION_COLUMNS} from mentorship_sessions where status in ('published', 'upcoming', 'live', 'completed')
                 and access_level in (${levels.map(() => '?').join(', ')}) order by starts_at`).bind(...levels),
-    db.prepare(`select l.session_id, ${prefixed('m', MENTOR_COLUMNS)} from mentorship_session_mentors l join mentors m on m.id = l.mentor_id`),
+    db.prepare(`select l.session_id, ${prefixed('m', MENTOR_COLUMNS)} from mentorship_session_mentors l join mentors m on m.id = l.mentor_id
+                where m.active = 1 and m.publish_public_profile = 1`),
   ]);
   const mentorsBySession = new Map<string, unknown[]>();
   for (const row of links.results as Record<string, unknown>[]) {
