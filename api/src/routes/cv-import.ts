@@ -64,7 +64,11 @@ export const cleanText = (text: string) => text.replace(/\u0000/g, '').replace(/
 async function fetchPublicPage(start: URL) {
   let url = start;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (!['http:', 'https:'].includes(url.protocol) || isPrivateHost(url.hostname)) throw new HttpError(400, 'Use a public website URL.');
+    // Workers subrequests cannot reach private networks, so a name that resolves to a private address fails at fetch;
+    // these checks also refuse literal IPs, local names and non-web ports on every hop.
+    if (!['http:', 'https:'].includes(url.protocol) || (url.port && !['80', '443'].includes(url.port)) || url.username || url.password || isPrivateHost(url.hostname)) {
+      throw new HttpError(400, 'Use a public website URL.');
+    }
     let res: Response;
     try {
       res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000), headers: { 'user-agent': 'GWMB-CV-Importer/1.0' } });

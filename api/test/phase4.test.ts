@@ -152,6 +152,8 @@ describe('CV import', () => {
     const user = await createUser();
     expect((await api(user, 'POST', '/v1/cv-import/url', { url: 'http://127.0.0.1/admin' })).status).toBe(400);
     expect((await api(user, 'POST', '/v1/cv-import/url', { url: 'http://localhost:8787' })).status).toBe(400);
+    expect((await api(user, 'POST', '/v1/cv-import/url', { url: 'https://example.com:8443/me' })).status).toBe(400);
+    expect((await api(user, 'POST', '/v1/cv-import/url', { url: 'https://user:pw@example.com/' })).status).toBe(400);
     const linkedin = await api<{ linkedinPdfRequired: boolean }>(user, 'POST', '/v1/cv-import/url', { url: 'https://www.linkedin.com/in/someone' });
     expect(linkedin).toEqual({ status: 422, body: expect.objectContaining({ linkedinPdfRequired: true }) });
     expect((await api(null, 'POST', '/v1/cv-import/url', { url: 'https://example.com' })).status).toBe(401);
