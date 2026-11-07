@@ -7,19 +7,25 @@ import { publish } from './live';
 
 type Rule = { prefix: string; broadcast?: string[]; self?: string[] };
 
+// First matching prefix wins, so specific admin routes come before the `/v1/admin/` catch-all.
+// `admin` reaches the admin consoles (new requests, applications, errors); members never receive it.
 const RULES: Rule[] = [
   { prefix: '/v1/admin/content', broadcast: ['content', 'calendar', 'marketplace', 'notifications'] },
-  { prefix: '/v1/admin/mentorship', broadcast: ['calendar', 'marketplace', 'notifications'] },
-  { prefix: '/v1/admin/chapter-admins', broadcast: ['calendar'] },
+  { prefix: '/v1/admin/mentorship', broadcast: ['calendar', 'marketplace', 'notifications', 'admin'] },
+  { prefix: '/v1/admin/chapter-admins', broadcast: ['calendar', 'admin'] },
+  { prefix: '/v1/admin/notifications', broadcast: ['notifications', 'admin'] },
+  { prefix: '/v1/admin/operations/flags', broadcast: ['flags', 'admin'] },
+  { prefix: '/v1/admin/', broadcast: ['notifications', 'admin'] }, // other admin decisions notify the member involved
   { prefix: '/v1/chapters', broadcast: ['calendar', 'notifications'] },
-  { prefix: '/v1/admin/notifications', broadcast: ['notifications'] },
-  { prefix: '/v1/admin/', broadcast: ['notifications'] }, // other admin decisions notify the member involved
   { prefix: '/v1/events', self: ['calendar', 'notifications'] },
-  { prefix: '/v1/mentorship', self: ['calendar', 'notifications'] },
-  { prefix: '/v1/opportunities', self: ['notifications'] },
-  { prefix: '/v1/career', self: ['notifications'] },
+  { prefix: '/v1/mentorship', broadcast: ['admin'], self: ['calendar', 'notifications'] },
+  { prefix: '/v1/opportunities', broadcast: ['admin'], self: ['notifications'] },
+  { prefix: '/v1/career', broadcast: ['admin'], self: ['notifications'] },
+  { prefix: '/v1/membership', broadcast: ['admin'] },
+  { prefix: '/v1/account', broadcast: ['admin'] },
+  { prefix: '/v1/errors', broadcast: ['admin'] },
   { prefix: '/v1/notifications', self: ['notifications'] },
-  { prefix: '/v1/community', self: ['calendar'] },
+  { prefix: '/v1/community', broadcast: ['admin'], self: ['calendar'] },
 ];
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

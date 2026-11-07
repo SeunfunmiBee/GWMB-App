@@ -1,6 +1,7 @@
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
-import { supabase } from '@/lib/supabase';
+import { apiCall } from '@/lib/auth';
+import { subscribeLive } from '@/lib/live';
 import { useAuth } from '@/providers/AuthProvider';
 
 export type LaunchFeatureKey = 'attendance_participation' | 'application_assistant' | 'clique_sessions' | 'one_to_one_mentorship';
@@ -33,23 +34,22 @@ export function FeatureFlagProvider({ children }: PropsWithChildren) {
       setLoading(true);
       setFlags(defaults);
       setIsBetaTester(false);
-      const [flagResult, betaResult] = await Promise.all([
-        supabase.from('feature_flags').select('key,enabled,beta_only'),
-        user ? supabase.from('beta_testers').select('active').eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
-      ]);
+      const { data, error } = await apiCall<{ flags: RuntimeFlag[]; isBetaTester: boolean }>('/v1/flags');
       if (!active) return;
-      if (!flagResult.error) {
+      if (!error) {
         const next = { ...defaults };
-        for (const flag of flagResult.data ?? []) {
+        for (const flag of data?.flags ?? []) {
           if (flag.key in next) next[flag.key as LaunchFeatureKey] = flag as RuntimeFlag;
         }
         setFlags(next);
       }
-      setIsBetaTester(betaResult.data?.active === true);
+      setIsBetaTester(data?.isBetaTester === true);
       setLoading(false);
     }
     void load();
-    return () => { active = false; };
+    // Flag changes by an admin reach open apps immediately.
+    const stop = subscribeLive('flags', () => void load());
+    return () => { active = false; stop(); };
   }, [user]);
 
   const value = useMemo<FeatureFlagContextValue>(() => ({

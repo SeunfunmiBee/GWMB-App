@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
-import { supabase } from "@/lib/supabase";
+import { apiCall } from "@/lib/auth";
+import { subscribeLive } from "@/lib/live";
 import { useAuth } from "@/providers/AuthProvider";
 import { colors, fonts } from "@/theme";
 
@@ -51,54 +52,22 @@ type MemberRecord = {
 };
 type Notice = { kind: "success" | "error"; title: string; copy: string };
 type QueueCounts = Record<Tab, number>;
-const PAGE_SIZE = 30;
-const memberColumns =
-  "id,member_identifier,membership_email,chapter,status,dues_status,linked_user_id,created_at";
-const requestColumns =
-  "user_id,membership_email,member_identifier,chapter,membership_record_id,status,review_note,submitted_at";
 
 async function fetchMemberPage(term: string, offset: number) {
-  let request = supabase
-    .from("membership_records")
-    .select(memberColumns, { count: "exact" })
-    .order("created_at", { ascending: false });
-  const safe = term.replace(/[^a-zA-Z0-9@._ -]/g, " ").trim();
-  if (safe)
-    request = request.or(
-      `member_identifier.ilike.%${safe}%,membership_email.ilike.%${safe}%,chapter.ilike.%${safe}%`,
-    );
-  const result = await request.range(offset, offset + PAGE_SIZE - 1);
-  return {
-    items: (result.data ?? []) as MemberRecord[],
-    total: result.count ?? 0,
-    error: result.error,
-  };
+  const params = new URLSearchParams({ offset: String(offset) });
+  if (term.trim()) params.set("q", term.trim());
+  const { data, error } = await apiCall<{ items: MemberRecord[]; total: number }>(`/v1/admin/memberships/records?${params}`);
+  return { items: data?.items ?? [], total: data?.total ?? 0, error };
 }
 
 async function fetchRequestPage(offset: number) {
-  const result = await supabase
-    .from("membership_verification_requests")
-    .select(requestColumns, { count: "exact" })
-    .order("submitted_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
-  return {
-    items: (result.data ?? []) as Request[],
-    total: result.count ?? 0,
-    error: result.error,
-  };
+  const { data, error } = await apiCall<{ items: Request[]; total: number }>(`/v1/admin/memberships/requests?offset=${offset}`);
+  return { items: data?.items ?? [], total: data?.total ?? 0, error };
 }
 
 async function fetchApplicationPage(offset: number) {
-  const result = await supabase
-    .from("membership_applications")
-    .select("*", { count: "exact" })
-    .order("submitted_at", { ascending: false })
-    .range(offset, offset + PAGE_SIZE - 1);
-  return {
-    items: (result.data ?? []) as Application[],
-    total: result.count ?? 0,
-    error: result.error,
-  };
+  const { data, error } = await apiCall<{ items: Application[]; total: number }>(`/v1/admin/memberships/applications?offset=${offset}`);
+  return { items: data?.items ?? [], total: data?.total ?? 0, error };
 }
 
 export default function AdminApprovals() {
@@ -152,6 +121,8 @@ export default function AdminApprovals() {
   useEffect(() => {
     if (isAdmin) void load();
   }, [isAdmin, load]);
+  // New requests and applications arrive live.
+  useEffect(() => (isAdmin ? subscribeLive("admin", () => void load()) : undefined), [isAdmin, load]);
   useEffect(() => {
     if (!isAdmin) return;
     const requestId = ++memberRequestId.current;
@@ -214,26 +185,17 @@ export default function AdminApprovals() {
       return;
     }
     setAdding(true);
-    const { data, error } = await supabase
-      .from("membership_records")
-      .insert({
-        member_identifier: cleanId,
-        membership_email: cleanEmail,
-        chapter: chapter.trim() || null,
-        status: "active",
-        dues_status: "unknown",
-      })
-      .select(
-        "id,member_identifier,membership_email,chapter,status,dues_status,linked_user_id,created_at",
-      )
-      .single();
+    const { data, error } = await apiCall<MemberRecord>("/v1/admin/memberships/records", {
+      method: "POST",
+      body: JSON.stringify({ member_identifier: cleanId, membership_email: cleanEmail, chapter: chapter.trim() || null }),
+    });
     setAdding(false);
     if (error) {
       setNotice({
         kind: "error",
         title: "Record not added",
         copy:
-          error.code === "23505"
+          /already exists/i.test(error.message)
             ? "That Member ID already exists."
             : error.message,
       });
@@ -258,12 +220,11 @@ export default function AdminApprovals() {
         "Official record required",
         "Add the member record, then ask the member to try verification again.",
       );
-    const { error } = await supabase.rpc("admin_resolve_membership_link", {
-      p_user_id: item.user_id,
-      p_approved: approved,
-      p_review_note: approved
+    const { error } = await apiCall(`/v1/admin/memberships/requests/${item.user_id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ approved, note: approved
         ? "Membership manually verified by GWMB."
-        : "The submitted details could not be verified.",
+        : "The submitted details could not be verified." }),
     });
     if (error) {
       setNotice({

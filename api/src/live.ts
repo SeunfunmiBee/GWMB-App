@@ -6,8 +6,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { Env } from './env';
 
-export const PUBLIC_TOPICS = ['content', 'calendar', 'marketplace', 'notifications'] as const;
-export type Topic = (typeof PUBLIC_TOPICS)[number];
+export const PUBLIC_TOPICS = ['content', 'calendar', 'marketplace', 'notifications', 'flags'] as const;
+/** Only granted to app admins (admin consoles: new requests, applications, errors). */
+export const ADMIN_TOPIC = 'admin';
+export type Topic = (typeof PUBLIC_TOPICS)[number] | typeof ADMIN_TOPIC;
 const MAX_TOPICS = 8; // Cloudflare allows 10 tags per socket; one is reserved for the user tag.
 
 export class LiveHub extends DurableObject<Env> {
@@ -59,8 +61,9 @@ function hub(env: Env) {
 }
 
 /** Topics a client may subscribe to: known public topics only, deduplicated and capped. */
-export function allowedTopics(requested: string | undefined) {
-  const wanted = (requested ?? '').split(',').map((t) => t.trim()).filter((t): t is Topic => (PUBLIC_TOPICS as readonly string[]).includes(t));
+export function allowedTopics(requested: string | undefined, admin: boolean) {
+  const known: readonly string[] = admin ? [...PUBLIC_TOPICS, ADMIN_TOPIC] : PUBLIC_TOPICS;
+  const wanted = (requested ?? '').split(',').map((t) => t.trim()).filter((t): t is Topic => known.includes(t));
   return [...new Set(wanted)].slice(0, MAX_TOPICS);
 }
 

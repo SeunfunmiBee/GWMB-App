@@ -55,7 +55,9 @@ describe('content access', () => {
       const created = await make(access);
       await env.DB.prepare("update content_items set status = 'published' where id = ?").bind((created.body as { id: string }).id).run();
     }
-    const titles = async (user: TestUser | null) => (await api<{ title: string }[]>(user, 'GET', `/v1/content?area=${area}`)).body.map((i) => i.title).sort();
+    // Only the three items created here (the area also holds seeded resources).
+    const titles = async (user: TestUser | null) => (await api<{ title: string }[]>(user, 'GET', `/v1/content?area=${area}`)).body
+      .map((i) => i.title).filter((t) => ['open', 'account', 'members'].includes(t)).sort();
     expect(await titles(null)).toEqual(['open']);
     expect(await titles(regular)).toEqual(['account', 'open']);
     expect(await titles(member)).toEqual(['account', 'members', 'open']);

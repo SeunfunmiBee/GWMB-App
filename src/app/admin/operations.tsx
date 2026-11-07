@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, TextInpu
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { addBetaTester, loadLaunchOperations, processAccountRequest, resolveError, updateFeatureFlag, updateOperationalRequest, type AccountRequest, type AuditLog, type ErrorLog, type FeatureFlag, type SupportRequest } from '@/lib/launch-operations';
+import { subscribeLive } from '@/lib/live';
 import { colors, fonts } from '@/theme';
 
 type Tab='Requests'|'Errors'|'Audit'|'Beta';
@@ -11,6 +12,7 @@ export default function Operations(){
   const[tab,setTab]=useState<Tab>('Requests');const[loading,setLoading]=useState(true);const[processing,setProcessing]=useState<string|null>(null);const[notice,setNotice]=useState<string|null>(null);const[accounts,setAccounts]=useState<AccountRequest[]>([]);const[support,setSupport]=useState<SupportRequest[]>([]);const[errors,setErrors]=useState<ErrorLog[]>([]);const[audit,setAudit]=useState<AuditLog[]>([]);const[flags,setFlags]=useState<FeatureFlag[]>([]);const[beta,setBeta]=useState<Record<string,unknown>[]>([]);const[email,setEmail]=useState('');const[role,setRole]=useState<'app_user'|'member'|'chapter_admin'|'central_admin'>('member');
   const load=useCallback(async()=>{setLoading(true);try{const data=await loadLaunchOperations();setAccounts(data.accountRequests);setSupport(data.supportRequests);setErrors(data.errors);setAudit(data.audit);setFlags(data.flags);setBeta(data.betaTesters)}catch(error){setNotice(error instanceof Error?error.message:'Operations could not be loaded.')}finally{setLoading(false)}},[]);
   useEffect(()=>{void load()},[load]);
+  useEffect(()=>subscribeLive('admin',()=>void load()),[load]);
   async function completeSupport(id:string){await updateOperationalRequest('support_requests',id,'resolved');setNotice('Support request resolved.');await load()}
   async function completeAccount(item:AccountRequest){const run=async()=>{setProcessing(item.id);try{const result=await processAccountRequest(item.id);setNotice(result.type==='data_export'?'Private export created. The user can download it from Privacy Centre.':'The account and associated app data were deleted.');await load()}catch(error){setNotice(error instanceof Error?error.message:'Request could not be processed.')}finally{setProcessing(null)}};if(item.request_type==='account_deletion')Alert.alert('Delete this account permanently?','This removes the authentication account and cascades its GWMB app data. This cannot be undone.',[{text:'Cancel',style:'cancel'},{text:'Delete account',style:'destructive',onPress:()=>void run()}]);else await run()}
   async function toggle(flag:FeatureFlag,value:boolean){await updateFeatureFlag(flag.key,{enabled:value,beta_only:flag.beta_only});setFlags(current=>current.map(item=>item.key===flag.key?{...item,enabled:value}:item))}
