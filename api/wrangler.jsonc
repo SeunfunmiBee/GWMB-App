@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "d1_databases": [
-    { "binding": "DB", "database_name": "gwmb", "database_id": "local-placeholder", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "gwmb", "database_id": "d4f3e29d-211f-4f44-933c-a8ed60966877", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "gwmb-files" }],
   "durable_objects": { "bindings": [{ "name": "LIVE", "class_name": "LiveHub" }] },
@@ -14,9 +14,10 @@
   "triggers": { "crons": ["* * * * *"] }, // notification dispatch
   "vars": {
     "APP_SCHEME": "gwmb",
+    "BETTER_AUTH_URL": "https://gwmb-api.crecerpartnersllc.workers.dev",
     "WEB_ORIGINS": "http://localhost:8081"
   }
-  // Set per environment: BETTER_AUTH_URL (var), and secrets BETTER_AUTH_SECRET, SIGNING_SECRET,
+  // Secrets (wrangler secret put): BETTER_AUTH_SECRET, SIGNING_SECRET,
   // ADMIN_SECRET, RESEND_API_KEY, NOTIFICATION_FROM_EMAIL; optional MENTOR_WEBHOOK_SECRET and GOOGLE_CLIENT_ID,
   // GOOGLE_CLIENT_SECRET, GOOGLE_TOKEN_ENCRYPTION_KEY. See README.
 }

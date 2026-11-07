@@ -5,3 +5,4 @@ node_modules
 secrets.json
 rewrite-storage-urls.sql
 .wrangler
+.prod-secrets.env
