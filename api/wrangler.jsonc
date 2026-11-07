@@ -12,6 +12,8 @@
   "durable_objects": { "bindings": [{ "name": "LIVE", "class_name": "LiveHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LiveHub"] }],
   "triggers": { "crons": ["* * * * *"] }, // notification dispatch
+  "routes": [{ "pattern": "api.girlswhomeanbusiness.org", "custom_domain": true }],
+  "workers_dev": true, // keep the old address live until every client uses the custom domain
   "vars": {
     "APP_SCHEME": "gwmb",
     "BETTER_AUTH_URL": "https://gwmb-api.crecerpartnersllc.workers.dev",
