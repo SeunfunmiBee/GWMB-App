@@ -25,11 +25,13 @@ export async function loadJoinedCliques(userId: string) {
 }
 
 export async function joinClique(userId: string, cliqueId: string) {
-  const ids = Array.from(new Set([cliqueId, ...readLocal(userId)]));
-  writeLocal(userId, ids);
+  const current = readLocal(userId);
   const { error } = await supabase.from('clique_memberships').upsert({ user_id:userId, clique_id:cliqueId }, { onConflict:'user_id,clique_id' });
+  if (error) return { ids:current, cloud:false, error };
+  const ids = Array.from(new Set([cliqueId, ...current]));
+  writeLocal(userId, ids);
   try { globalThis.localStorage?.setItem(updatesKey(userId), 'true'); } catch { /* best effort */ }
-  return { ids, cloud:!error };
+  return { ids, cloud:true, error:null };
 }
 
 export async function loadCliqueSessionSeats(userId:string){
@@ -39,6 +41,6 @@ export async function loadCliqueSessionSeats(userId:string){
   const ids=(data??[]).map(item=>String(item.session_id));try{globalThis.localStorage?.setItem(seatsKey(userId),JSON.stringify(ids))}catch{/* best effort */}return ids;
 }
 
-export async function saveCliqueSessionSeat(userId:string,sessionId:string){const current=await loadCliqueSessionSeats(userId);const ids=Array.from(new Set([sessionId,...current]));try{globalThis.localStorage?.setItem(seatsKey(userId),JSON.stringify(ids))}catch{/* best effort */}await supabase.from('clique_session_seats').upsert({user_id:userId,session_id:sessionId,status:'saved',saved_at:new Date().toISOString()},{onConflict:'user_id,session_id'});return ids}
+export async function saveCliqueSessionSeat(userId:string,sessionId:string){const current=await loadCliqueSessionSeats(userId);const ids=Array.from(new Set([sessionId,...current]));const{error}=await supabase.from('clique_session_seats').upsert({user_id:userId,session_id:sessionId,status:'saved',saved_at:new Date().toISOString()},{onConflict:'user_id,session_id'});if(error)return current;try{globalThis.localStorage?.setItem(seatsKey(userId),JSON.stringify(ids))}catch{/* best effort */}return ids}
 
 export function cliqueUpdatesEnabled(userId:string){try{return globalThis.localStorage?.getItem(updatesKey(userId))==='true'}catch{return false}}

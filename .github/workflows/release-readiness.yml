@@ -21,6 +21,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run test:journeys
       - run: npm run flow:check
       - run: npm run release:check
       - run: npx expo export --platform web --output-dir /tmp/gwmb-web-build

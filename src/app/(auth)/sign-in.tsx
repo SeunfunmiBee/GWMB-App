@@ -1,4 +1,4 @@
-import { router as expoRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -8,9 +8,9 @@ import { completeWelcome } from '@/lib/first-launch';
 import { supabase } from '@/lib/supabase';
 import { colors, fonts } from '@/theme';
 
-const router={replace:(href:string)=>expoRouter.replace(href as never),push:(href:string)=>expoRouter.push(href as never)};
-
 export default function SignInScreen(){
+  const expoRouter=useRouter();
+  const router={replace:(href:string)=>expoRouter.replace(href as never),push:(href:string)=>expoRouter.push(href as never)};
   const[email,setEmail]=useState('');const[password,setPassword]=useState('');const[message,setMessage]=useState<string|null>(null);const[submitting,setSubmitting]=useState(false);
   async function signIn(){
     setMessage(null);

@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/Screen';
 import { AppStateView } from '@/components/states/AppStateView';
@@ -6,6 +6,7 @@ import { ScreenSkeleton } from '@/components/states/Skeleton';
 import { useAuth } from '@/providers/AuthProvider';
 
 export default function AdminLayout() {
+  const router = useRouter();
   const { user, isAdmin, loading, accountLoading } = useAuth();
 
   if (loading || accountLoading) {

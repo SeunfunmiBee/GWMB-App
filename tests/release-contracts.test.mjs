@@ -181,14 +181,18 @@ test('membership verification uses server-owned matching and short-lived email p
 test('publication is validated in Admin and again at the database boundary', async () => {
   const builder = await source('src/app/admin/builder.tsx');
   expectAll(builder, [
-    'function publicationIssues(',
+    'import { publicationIssues } from "@/lib/admin-content-validation"',
     'const issues = publicationIssues(type, readyDraft, meta)',
     'Complete before publishing',
+  ], 'Admin builder');
+  const validation = await source('src/lib/admin-content-validation.ts');
+  expectAll(validation, [
+    'export function publicationIssues(',
     'At least one app surface',
     'At least one lesson',
     'Registration deadline',
     'Resource format',
-  ], 'Admin builder');
+  ], 'Admin publication validation');
 
   const migration = await source('supabase/migrations/202610290006_high_priority_release_integrity.sql');
   expectAll(migration, [
