@@ -7,7 +7,6 @@ import {
   type MentorshipType,
 } from "@/data/mentorship";
 import { apiCall } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
 
 export type MentorshipRegistration = {
   id: string;
@@ -444,7 +443,8 @@ export async function importMentorSubmission(
   data: Record<string, unknown>,
   formType: "mentor_application" | "mentor_availability" = "mentor_application",
 ) {
-  return supabase.functions.invoke("mentor-intake", {
-    body: { source: "admin_excel", form_type: formType, data },
+  return apiCall<{ mentor_id: string; action: "created" | "updated" }>("/v1/mentor-intake", {
+    method: "POST",
+    body: JSON.stringify({ source: "admin_excel", form_type: formType, data }),
   });
 }

@@ -19,9 +19,9 @@ The old `supabase/` folder stays in the repo as the reference implementation unt
 | 1. Port the remaining 61 tables to D1 migrations (`0003_app_schema.sql`) + [porting ledger](PORTING_LEDGER.md) | Done |
 | 2. App sign-in screens and `AuthProvider` on the Better Auth Expo client; email codes replace email links; `/v1/me` | Done |
 | 3. Replace RPCs and direct table access with API endpoints (authorization in code + tests) | Done |
-| 4. Move Edge Functions into the Worker; notification dispatch becomes a Cron Trigger | Next |
+| 4. Move Edge Functions into the Worker; notification dispatch becomes a Cron Trigger | Done |
 | 5. Realtime over WebSockets (Durable Object), replacing Supabase realtime | Done |
-| 6. Remove `@supabase/supabase-js` from the app | |
+| 6. Remove `@supabase/supabase-js` from the app | Next |
 
 ### Phase 3 areas
 
@@ -30,14 +30,29 @@ Each area: endpoints with the old access rules enforced in code, tests in `api/t
 | Area | App modules | Status |
 | --- | --- | --- |
 | Account & membership | `account.ts`, `/v1/me`, `/v1/membership` | Done |
-| Content, courses & events | `admin-content.ts`, `content-runtime.ts`, `course-progress.ts`, `event-store.ts`, `calendar-store.ts`, `advanced-program.ts` | Done (Google Calendar calls wait for phase 4) |
-| Opportunities, CVs & career | `opportunity-store.ts`, `application-profile-store.ts`, `cv-store.ts`, `career-readiness.ts`, `marketplace-*.ts` | Done (CV parsing and profile import wait for phase 4) |
-| Mentorship | `mentorship-store.ts`, admin mentorship screens | Done (mentor spreadsheet import waits for phase 4) |
+| Content, courses & events | `admin-content.ts`, `content-runtime.ts`, `course-progress.ts`, `event-store.ts`, `calendar-store.ts`, `advanced-program.ts` | Done |
+| Opportunities, CVs & career | `opportunity-store.ts`, `application-profile-store.ts`, `cv-store.ts`, `career-readiness.ts`, `marketplace-*.ts` | Done |
+| Mentorship | `mentorship-store.ts`, admin mentorship screens | Done |
 | Community & chapters | `clique-store.ts`, `chapter-admin.ts`, `community-location.tsx`, `volunteer.tsx` | Done |
-| Notifications | `notification-store.ts`, `use-unread-notifications.ts`, admin notifications | Done (the "send now" dispatcher waits for phase 4) |
-| Admin operations | `launch-operations.ts`, `approvals.tsx`, `FeatureFlagProvider.tsx` | Done (export/deletion processing and Google integration wait for phase 4) |
+| Notifications | `notification-store.ts`, `use-unread-notifications.ts`, admin notifications | Done |
+| Admin operations | `launch-operations.ts`, `approvals.tsx`, `FeatureFlagProvider.tsx` | Done |
 
-Run the API tests with `npm test` in `api/` (85 tests).
+### Phase 4: Edge Functions
+
+| Edge Function | Now |
+| --- | --- |
+| `notification-dispatch` | `src/dispatch.ts`, run every minute by the Cron Trigger and by `POST /v1/admin/notifications/dispatch` ("send now"). Rows are claimed with one `UPDATE ... RETURNING`, so overlapping runs never double-send; new in-app notifications are pushed to the member's open apps over `/v1/live` |
+| `account-request-process` | `POST /v1/admin/operations/account-requests/:id/process` (export bundle to R2, or deletion of R2 files + the Better Auth user, whose foreign keys cascade) and `GET /v1/account/requests/:id/export-url` (owner only, 10-minute link) |
+| `parse-cv` | `POST /v1/cv-import/file` (PDF via `unpdf`, DOCX via `mammoth`) |
+| `parse-profile-url` | `POST /v1/cv-import/url` (public hosts only, every redirect re-checked) |
+| `mentor-intake` | `POST /v1/mentor-intake` (`x-mentor-webhook-secret` or an admin session) |
+| `google-calendar-*` | `/v1/admin/integrations/google/{status,start,meet}`; Google redirects to `/v1/integrations/google/callback` (one-time state). Stored tokens use the old encryption format, so set the same `GOOGLE_TOKEN_ENCRYPTION_KEY` to keep an existing connection |
+| `membership-email-otp` | `/v1/membership` (phase 3) |
+
+Optional secrets: `MENTOR_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_ENCRYPTION_KEY`. In Google Cloud,
+add `<BETTER_AUTH_URL>/v1/integrations/google/callback` as an authorised redirect URI.
+
+Run the API tests with `npm test` in `api/` (96 tests).
 
 ### Realtime
 

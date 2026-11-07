@@ -2,7 +2,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { createSignedUrl, publicUrl, uploadFile, type UploadControl } from '@/lib/storage';
 import { apiCall } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 
 export const contentAreas = [
   ['home', 'Home'],
@@ -143,9 +142,13 @@ export async function resolveContentFileUrl(value:string){
 }
 
 export async function createGoogleMeet(contentId: string) {
-  return supabase.functions.invoke('google-calendar-create-event', { body: { contentId } });
+  return apiCall<{ meetingUrl: string | null; eventId: string }>('/v1/admin/integrations/google/meet', { method: 'POST', body: JSON.stringify({ contentId }) });
 }
 
 export async function getGoogleCalendarStatus() {
-  return supabase.functions.invoke('google-calendar-status');
+  return apiCall<{ connected: boolean; email: string | null; connectedAt: string | null; configured: boolean }>('/v1/admin/integrations/google/status');
+}
+
+export async function startGoogleCalendarConnection() {
+  return apiCall<{ url: string }>('/v1/admin/integrations/google/start', { method: 'POST' });
 }

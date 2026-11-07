@@ -8,7 +8,7 @@ export type AppEnv = { Bindings: Env; Variables: { userId: string; userEmail: st
 export const router = () => new Hono<AppEnv>();
 
 export class HttpError extends Error {
-  constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 500 | 502 | 503, message: string) {
+  constructor(public status: 400 | 401 | 403 | 404 | 409 | 413 | 415 | 422 | 429 | 500 | 502 | 503, message: string) {
     super(message);
   }
 }

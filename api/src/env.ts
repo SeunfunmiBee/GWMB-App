@@ -13,4 +13,8 @@ export interface Env {
   NOTIFICATION_FROM_EMAIL?: string;
   SIGNING_SECRET: string; // HMAC key for signed file URLs
   ADMIN_SECRET: string; // service access for scripts and scheduled jobs
+  MENTOR_WEBHOOK_SECRET?: string; // external mentor forms send it as x-mentor-webhook-secret
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_TOKEN_ENCRYPTION_KEY?: string; // 32+ characters; encrypts the stored Google refresh token
 }

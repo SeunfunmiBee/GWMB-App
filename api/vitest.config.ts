@@ -13,10 +13,11 @@ export default defineConfig({
           BETTER_AUTH_SECRET: 'test-secret-test-secret-test-secret-0123',
           SIGNING_SECRET: 'test-signing',
           ADMIN_SECRET: 'test-admin',
+          MENTOR_WEBHOOK_SECRET: 'test-mentor-hook',
           ENVIRONMENT: 'development',
         },
       },
     })),
   ],
-  test: { setupFiles: ['./test/setup.ts'] },
+  test: { setupFiles: ['./test/setup.ts'], testTimeout: 30_000 }, // the first PDF parse loads pdf.js
 });

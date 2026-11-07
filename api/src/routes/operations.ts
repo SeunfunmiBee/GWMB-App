@@ -1,12 +1,14 @@
 // Account requests, support, error reporting, feature flags, beta testers and the membership approvals console.
 // Ports the RLS on these tables and request_account_action / cancel_account_deletion (202610200005),
 // submit_support_request / log_app_error (202610300002), add_beta_tester_by_email, admin_resolve_membership_link
-// (202610150001). Processing data exports and deletions is the account-request job (phase 4).
+// (202610150001), and the `account-request-process` Edge Function (export bundles and account deletion).
 import { z } from 'zod';
 import { decode, decodeAll } from '../db';
 import { audit, body, HttpError, nowIso, optionalUser, requireAdmin, requireUser, router } from '../http';
 import { normalizeEmail } from './membership';
 import { enforceRateLimit } from '../rate-limit';
+import { exportPathFor, loadRequest, processRequest } from '../account-processing';
+import { signedUrl } from '../storage';
 
 const MINUTE = 60_000;
 
@@ -29,6 +31,13 @@ account.post('/requests', async (c) => {
   const row = await c.env.DB.prepare('insert into account_requests (user_id, email, request_type, details) values (?, ?, ?, ?) returning id')
     .bind(userId, c.get('userEmail'), input.type, input.details || null).first<{ id: string }>();
   return c.json({ id: row?.id }, 201);
+});
+
+/** A 10-minute download link for the member's own completed data export. */
+account.get('/requests/:id/export-url', async (c) => {
+  const path = exportPathFor(await loadRequest(c.env, c.req.param('id')), c.get('userId'));
+  if (!path) throw new HttpError(403, 'This export is not available.');
+  return c.json({ url: await signedUrl(c.env, new URL(c.req.url).origin, 'privacy-exports', path, 600) });
 });
 
 account.post('/requests/cancel-deletion', async (c) => {
@@ -152,6 +161,9 @@ adminOperations.patch('/account-requests/:id', async (c) => {
   await audit(c.env, c.get('userId'), 'update', 'account_requests', c.req.param('id'), { status });
   return c.json({ ok: true });
 });
+
+/** Builds the data export or deletes the account (with its files). */
+adminOperations.post('/account-requests/:id/process', async (c) => c.json(await processRequest(c.env, c.get('userId'), c.req.param('id'))));
 
 adminOperations.patch('/support-requests/:id', async (c) => {
   const { status } = await body(c, z.object({ status: z.enum(SUPPORT_STATUSES) }));

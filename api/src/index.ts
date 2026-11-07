@@ -16,6 +16,11 @@ import { adminMentorship, mentorship } from './routes/mentorship';
 import { adminNotifications, notifications } from './routes/notifications';
 import { account, adminMemberships, adminOperations, errors, flags } from './routes/operations';
 import { me } from './routes/me';
+import { cvImport } from './routes/cv-import';
+import { adminIntegrations, integrationCallbacks } from './routes/integrations';
+import { mentorIntake } from './routes/mentor-intake';
+import { dispatchNotifications } from './dispatch';
+import type { Env } from './env';
 import { live } from './routes/live';
 import { publishChanges } from './realtime-publish';
 import { handleStorage } from './storage';
@@ -47,6 +52,7 @@ app.route('/v1/courses', learning);
 app.route('/v1/events', events);
 app.route('/v1/calendar', calendar);
 app.route('/v1/opportunities', opportunities);
+app.route('/v1/cv-import', cvImport);
 app.route('/v1/cvs', cvs);
 app.route('/v1/career/public', careerPublic);
 app.route('/v1/career', career);
@@ -58,6 +64,8 @@ app.route('/v1/notifications', notifications);
 app.route('/v1/account', account);
 app.route('/v1/errors', errors);
 app.route('/v1/flags', flags);
+app.route('/v1/mentor-intake', mentorIntake);
+app.route('/v1/integrations', integrationCallbacks);
 app.route('/v1/admin/content', adminContent);
 app.route('/v1/admin/opportunities', adminOpportunities);
 app.route('/v1/admin/cvs', adminCvs);
@@ -68,6 +76,15 @@ app.route('/v1/admin/notifications', adminNotifications);
 app.route('/v1/admin/operations', adminOperations);
 app.route('/v1/admin/memberships', adminMemberships);
 app.route('/v1/admin/calendar', adminCalendar);
+app.route('/v1/admin/integrations', adminIntegrations);
 
 export { LiveHub } from './live';
-export default app;
+export default {
+  fetch: app.fetch,
+  // Cron Trigger (wrangler.jsonc, every minute): deliver due notifications and mentor reminders.
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(dispatchNotifications(env).then((summary) => {
+      if (summary.failed) console.warn('notification dispatch', summary);
+    }));
+  },
+} satisfies ExportedHandler<Env>;

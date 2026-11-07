@@ -2,7 +2,6 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { apiFetch } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
 
 export type AccountRequest={id:string;email:string|null;request_type:'data_export'|'account_deletion';status:'submitted'|'in_review'|'completed'|'cancelled';details:string|null;requested_at:string};
 export type SupportRequest={id:string;email:string|null;request_type:'support'|'problem'|'feedback';subject:string;message:string;route:string|null;status:'open'|'in_progress'|'resolved'|'closed';created_at:string};
@@ -23,8 +22,7 @@ export async function logAppError(source:string,error:unknown,context:Record<str
 export async function loadLaunchOperations(){return apiFetch<{accountRequests:AccountRequest[];supportRequests:SupportRequest[];errors:ErrorLog[];audit:AuditLog[];flags:FeatureFlag[];betaTesters:Record<string,unknown>[]}>('/v1/admin/operations')}
 export async function updateFeatureFlag(key:string,change:Pick<FeatureFlag,'enabled'|'beta_only'>){await apiFetch(`/v1/admin/operations/flags/${encodeURIComponent(key)}`,patch(change))}
 export async function updateOperationalRequest(table:'account_requests'|'support_requests',id:string,status:string){await apiFetch(`/v1/admin/operations/${table==='account_requests'?'account-requests':'support-requests'}/${id}`,patch({status}))}
-// Data export and account deletion processing still run on the Supabase Edge Function until phase 4.
-export async function processAccountRequest(id:string){const{data,error}=await supabase.functions.invoke('account-request-process',{body:{action:'process',requestId:id}});if(error||data?.error)throw new Error(data?.error??error?.message??'Account request could not be processed.');return data as {ok:true;type:'data_export'|'account_deletion'}}
-export async function getAccountExportUrl(id:string){const{data,error}=await supabase.functions.invoke('account-request-process',{body:{action:'download',requestId:id}});if(error||data?.error)throw new Error(data?.error??error?.message??'Export could not be downloaded.');return String(data.url)}
+export async function processAccountRequest(id:string){return apiFetch<{ok:true;type:'data_export'|'account_deletion'}>(`/v1/admin/operations/account-requests/${id}/process`,{method:'POST'})}
+export async function getAccountExportUrl(id:string){return(await apiFetch<{url:string}>(`/v1/account/requests/${id}/export-url`)).url}
 export async function resolveError(id:string){await apiFetch(`/v1/admin/operations/errors/${id}/resolve`,{method:'POST'})}
 export async function addBetaTester(email:string,role:'app_user'|'member'|'chapter_admin'|'central_admin',notes?:string){await apiFetch('/v1/admin/operations/beta-testers',post({email,role,notes:notes??null}))}

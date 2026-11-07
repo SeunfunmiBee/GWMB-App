@@ -11,10 +11,12 @@
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "gwmb-files" }],
   "durable_objects": { "bindings": [{ "name": "LIVE", "class_name": "LiveHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LiveHub"] }],
+  "triggers": { "crons": ["* * * * *"] }, // notification dispatch
   "vars": {
     "APP_SCHEME": "gwmb",
     "WEB_ORIGINS": "http://localhost:8081"
   }
   // Set per environment: BETTER_AUTH_URL (var), and secrets BETTER_AUTH_SECRET, SIGNING_SECRET,
-  // ADMIN_SECRET, RESEND_API_KEY, NOTIFICATION_FROM_EMAIL. See README.
+  // ADMIN_SECRET, RESEND_API_KEY, NOTIFICATION_FROM_EMAIL; optional MENTOR_WEBHOOK_SECRET and GOOGLE_CLIENT_ID,
+  // GOOGLE_CLIENT_SECRET, GOOGLE_TOKEN_ENCRYPTION_KEY. See README.
 }

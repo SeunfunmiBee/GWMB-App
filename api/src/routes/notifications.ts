@@ -1,8 +1,9 @@
 // In-app notifications, notification preferences, push devices and admin broadcasts.
 // Ports the RLS on user_notifications / notification_preferences / push_devices, `register_push_device`
-// (202610140006) and `queue_admin_notification` (202610280003). Delivery is the dispatcher's job (phase 4).
+// (202610140006) and `queue_admin_notification` (202610280003). Delivery is `src/dispatch.ts`.
 import { z } from 'zod';
 import { decode, decodeAll, encode, isoTime } from '../db';
+import { dispatchNotifications } from '../dispatch';
 import { audit, body, nowIso, requireAdmin, requireUser, router } from '../http';
 
 export const notifications = router();
@@ -96,6 +97,9 @@ const broadcastInput = z.object({
   audience: z.enum(['everyone', 'members', 'app-users']),
   channels: z.array(z.enum(['in_app', 'push', 'email', 'sms', 'whatsapp'])).min(1, 'Choose at least one channel').max(5),
 });
+
+/** "Send now": the same run the Cron Trigger performs every minute. */
+adminNotifications.post('/dispatch', async (c) => c.json(await dispatchNotifications(c.env)));
 
 adminNotifications.post('/broadcast', async (c) => {
   const input = await body(c, broadcastInput);

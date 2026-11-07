@@ -74,9 +74,7 @@ async function route(req: Request, env: Env): Promise<Response> {
     const bucket = bucketOrThrow(body.bucket);
     const p = safePath(body.path);
     await authorize(req, env, bucket, 'read', p);
-    const expires = Math.floor(Date.now() / 1000) + Math.min(Math.max(body.expiresIn ?? 900, 30), 7 * 24 * 3600);
-    const sig = await hmac(env, `${bucket}/${p}:${expires}`);
-    return json({ signedUrl: `${url.origin}/storage/signed/${bucket}/${encodePath(p)}?exp=${expires}&sig=${sig}` });
+    return json({ signedUrl: await signedUrl(env, url.origin, bucket, p, body.expiresIn ?? 900) });
   }
 
   const bucket = bucketOrThrow(bucketName);
@@ -207,6 +205,25 @@ function checkType(rule: (typeof BUCKETS)[string], header: string | null) {
 
 function encodePath(path: string) {
   return path.split('/').map(encodeURIComponent).join('/');
+}
+
+/** A time-limited download link for `<bucket>/<path>` (30 seconds to 7 days). Callers check access first. */
+export async function signedUrl(env: Env, origin: string, bucket: string, path: string, expiresIn: number) {
+  const expires = Math.floor(Date.now() / 1000) + Math.min(Math.max(expiresIn, 30), 7 * 24 * 3600);
+  const sig = await hmac(env, `${bucket}/${path}:${expires}`);
+  return `${origin}/storage/signed/${bucket}/${encodePath(path)}?exp=${expires}&sig=${sig}`;
+}
+
+/** Every object under `<bucket>/<prefix>`, following R2 list cursors. */
+export async function listObjects(env: Env, bucket: string, prefix: string) {
+  const objects: R2Object[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.FILES.list({ prefix: `${bucket}/${prefix}`, cursor, include: ['httpMetadata'] });
+    objects.push(...page.objects);
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return objects;
 }
 
 async function hmac(env: Env, message: string) {

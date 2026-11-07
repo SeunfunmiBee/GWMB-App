@@ -13,6 +13,8 @@ const RULES: Rule[] = [
   { prefix: '/v1/admin/content', broadcast: ['content', 'calendar', 'marketplace', 'notifications'] },
   { prefix: '/v1/admin/mentorship', broadcast: ['calendar', 'marketplace', 'notifications', 'admin'] },
   { prefix: '/v1/admin/chapter-admins', broadcast: ['calendar', 'admin'] },
+  { prefix: '/v1/admin/notifications/dispatch' }, // the dispatcher publishes exactly who received what
+  { prefix: '/v1/admin/integrations', broadcast: ['content', 'calendar', 'admin'] },
   { prefix: '/v1/admin/notifications', broadcast: ['notifications', 'admin'] },
   { prefix: '/v1/admin/operations/flags', broadcast: ['flags', 'admin'] },
   { prefix: '/v1/admin/', broadcast: ['notifications', 'admin'] }, // other admin decisions notify the member involved
@@ -24,6 +26,7 @@ const RULES: Rule[] = [
   { prefix: '/v1/membership', broadcast: ['admin'] },
   { prefix: '/v1/account', broadcast: ['admin'] },
   { prefix: '/v1/errors', broadcast: ['admin'] },
+  { prefix: '/v1/mentor-intake', broadcast: ['admin'] },
   { prefix: '/v1/notifications', self: ['notifications'] },
   { prefix: '/v1/community', broadcast: ['admin'], self: ['calendar'] },
 ];
