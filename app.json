@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "GWMB – Girls Who Mean Business",
-    "slug": "gwmb-girls-who-mean-business",
-    "owner": "girls-who-mean-business",
+    "slug": "gwmb",
+    "owner": "crecerpartnerss-organization",
     "scheme": "gwmb",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -65,7 +65,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "26765876-ea6a-49ff-b894-91e32b9edc30"
+        "projectId": "4f501515-5607-4781-b35e-c915447bf379"
       }
     }
   }
