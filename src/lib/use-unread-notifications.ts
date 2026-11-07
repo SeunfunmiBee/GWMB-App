@@ -1,10 +1,10 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
-import { subscribeToRefresh } from '@/lib/live';
+import { subscribeLive } from '@/lib/live';
 import { loadUnreadNotificationCount } from '@/lib/notification-store';
 
-/** Unread badge count: refreshed on focus, every minute, and when the app returns to the foreground. */
+/** Unread badge count: refreshed on focus and whenever the server reports a notification change. */
 export function useUnreadNotifications(userId?:string){
   const[count,setCount]=useState(0);
   useFocusEffect(useCallback(()=>{
@@ -12,7 +12,7 @@ export function useUnreadNotifications(userId?:string){
     if(!userId){setCount(0);return()=>{active=false}}
     const refresh=()=>{void loadUnreadNotificationCount(userId).then(result=>{if(active&&!result.error)setCount(result.count)})};
     refresh();
-    const stop=subscribeToRefresh(refresh);
+    const stop=subscribeLive('notifications',refresh);
     return()=>{active=false;stop()};
   },[userId]));
   return count;

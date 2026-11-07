@@ -7,6 +7,7 @@ The old `supabase/` folder stays in the repo as the reference implementation unt
 | --- | --- |
 | `/api/auth/*` | Better Auth: email + password; email verification and password reset by 6-digit code; sessions (cookie on native, `Authorization: Bearer` on web) |
 | `/storage/*` | Files on R2 with the old bucket rules (table below) |
+| `/v1/live` | Realtime: WebSocket change notifications (Durable Object `LiveHub`); `POST /v1/live/ticket` for signed-in connections |
 | `/v1/me` | The signed-in user's profile, membership, admin and chapter access; `POST /v1/me/push-devices/deactivate` on sign-out |
 | `/health` | Liveness check |
 
@@ -19,7 +20,7 @@ The old `supabase/` folder stays in the repo as the reference implementation unt
 | 2. App sign-in screens and `AuthProvider` on the Better Auth Expo client; email codes replace email links; `/v1/me` | Done |
 | 3. Replace RPCs and direct table access with API endpoints (authorization in code + tests) | Next |
 | 4. Move Edge Functions into the Worker; notification dispatch becomes a Cron Trigger | |
-| 5. Replace realtime subscriptions with polling | |
+| 5. Realtime over WebSockets (Durable Object), replacing Supabase realtime | Done |
 | 6. Remove `@supabase/supabase-js` from the app | |
 
 ### Phase 3 areas
@@ -36,7 +37,16 @@ Each area: endpoints with the old access rules enforced in code, tests in `api/t
 | Notifications | `notification-store.ts`, `use-unread-notifications.ts`, admin notifications | Done (the "send now" dispatcher waits for phase 4) |
 | Admin operations | `launch-operations.ts`, `approvals.tsx`, `FeatureFlagProvider.tsx`, `integrations.tsx` | Next |
 
-Run the API tests with `npm test` in `api/` (73 tests).
+Run the API tests with `npm test` in `api/` (78 tests).
+
+### Realtime
+
+`LiveHub` (a Durable Object using WebSocket hibernation) holds every client socket. After a successful write,
+`src/realtime-publish.ts` maps the route to topics (`content`, `calendar`, `marketplace`, `notifications`) and
+either broadcasts them or sends them only to the acting member's devices. Messages carry only the topic; the app
+refetches through the API, so access rules still apply. Signed-in sockets authenticate with a 60-second ticket.
+The app keeps one shared socket (`src/lib/live.ts`) with reconnect backoff, a catch-up refresh on reconnect or
+foreground, and a 5-minute safety refresh.
 
 Rows go through `src/db.ts`: booleans are stored `0/1`, JSON as text and timestamps as UTC ISO text; `src/db-columns.ts` (generated) says which column is which.
 

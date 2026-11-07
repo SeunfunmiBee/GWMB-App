@@ -15,6 +15,8 @@ import { membership } from './routes/membership';
 import { adminMentorship, mentorship } from './routes/mentorship';
 import { adminNotifications, notifications } from './routes/notifications';
 import { me } from './routes/me';
+import { live } from './routes/live';
+import { publishChanges } from './realtime-publish';
 import { handleStorage } from './storage';
 
 const app = router();
@@ -31,7 +33,10 @@ app.use('*', async (c, next) => {
   })(c, next);
 });
 
+app.use('/v1/*', publishChanges);
+
 app.get('/health', (c) => c.json({ ok: true }));
+app.route('/v1/live', live);
 app.on(['GET', 'POST'], '/api/auth/*', (c) => createAuth(c.env).handler(c.req.raw));
 app.all('/storage/*', (c) => handleStorage(c.req.raw, c.env));
 app.route('/v1/me', me);
@@ -58,4 +63,5 @@ app.route('/v1/admin/chapter-admins', adminChapters);
 app.route('/v1/admin/notifications', adminNotifications);
 app.route('/v1/admin/calendar', adminCalendar);
 
+export { LiveHub } from './live';
 export default app;

@@ -9,6 +9,8 @@
     { "binding": "DB", "database_name": "gwmb", "database_id": "local-placeholder", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "gwmb-files" }],
+  "durable_objects": { "bindings": [{ "name": "LIVE", "class_name": "LiveHub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LiveHub"] }],
   "vars": {
     "APP_SCHEME": "gwmb",
     "WEB_ORIGINS": "http://localhost:8081"

@@ -1,5 +1,5 @@
 import { apiCall } from '@/lib/auth';
-import { subscribeToRefresh } from '@/lib/live';
+import { subscribeLive } from '@/lib/live';
 
 export type MarketplaceContentType = 'course' | 'event' | 'mentorship' | 'opportunity' | 'resource' | 'career_tool' | 'pathway';
 export type MarketplaceAvailability = 'draft' | 'scheduled' | 'available' | 'full' | 'closed' | 'archived';
@@ -116,7 +116,7 @@ function mentorToInventory(mentor:Record<string,unknown>):MarketplaceInventoryIt
 }
 
 export function subscribeToMarketplaceChanges(onChange:()=>void){
-  return subscribeToRefresh(onChange);
+  return subscribeLive('marketplace',onChange);
 }
 
 export function freshMarketplaceItems(items:MarketplaceInventoryItem[],input:{interests:string[];isMember:boolean;excludeRoutes?:string[];now?:Date}){

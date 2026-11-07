@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { GwmbEvent } from '@/data/events';
 import type { Opportunity } from '@/data/opportunities';
 import { listPublishedContent, type ContentArea, type ContentItem } from '@/lib/admin-content';
-import { subscribeToRefresh } from '@/lib/live';
+import { subscribeLive } from '@/lib/live';
 
 export type PublishedContentState = {
   items: ContentItem[];
@@ -29,7 +29,7 @@ export function usePublishedContentState(area: ContentArea): PublishedContentSta
 
   useEffect(() => {
     void Promise.resolve().then(refresh);
-    return subscribeToRefresh(() => void refresh());
+    return subscribeLive('content', () => void refresh());
   }, [area, refresh]);
 
   return { items, loading, error, refresh };

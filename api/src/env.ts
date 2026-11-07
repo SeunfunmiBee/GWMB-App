@@ -1,5 +1,8 @@
+import type { LiveHub } from './live';
+
 export interface Env {
   DB: D1Database;
+  LIVE: DurableObjectNamespace<LiveHub>;
   FILES: R2Bucket;
   BETTER_AUTH_URL: string; // public URL of this Worker, e.g. https://gwmb-api.<subdomain>.workers.dev
   BETTER_AUTH_SECRET: string;

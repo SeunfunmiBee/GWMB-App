@@ -1,6 +1,7 @@
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { apiFetch, type AppSession, type AppUser, authClient, signOut as authSignOut, toAppUser } from '@/lib/auth';
+import { resetLive } from '@/lib/live';
 import type { ChapterAccess } from '@/lib/chapter-admin';
 import type { Membership, Profile } from '@/types/database';
 
@@ -52,6 +53,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => { active = false; };
   }, [isPending, userId]);
   const current = userId && loaded?.userId === userId ? loaded : null;
+
+  // Realtime subscriptions follow the signed-in identity (personal topics need a fresh ticket).
+  useEffect(() => { if (!isPending) resetLive(); }, [isPending, userId]);
 
   // A session that disappears without an intentional sign-out is reported as expired.
   const [lastUserId, setLastUserId] = useState<string | null>(null);

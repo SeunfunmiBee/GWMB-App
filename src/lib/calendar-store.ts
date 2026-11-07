@@ -1,5 +1,5 @@
 import { apiCall } from '@/lib/auth';
-import { subscribeToRefresh } from '@/lib/live';
+import { subscribeLive } from '@/lib/live';
 
 export type CalendarItem={
   source_type:'content_course'|'content_event'|'content_other'|'mentorship'|'local_event'|'local_project';
@@ -35,7 +35,7 @@ export async function loadMyCalendar(){
 }
 
 export function subscribeToCalendarChanges(onChange:()=>void){
-  return subscribeToRefresh(onChange);
+  return subscribeLive('calendar',onChange);
 }
 
 function byStart(a:CalendarItem,b:CalendarItem){return new Date(a.starts_at).getTime()-new Date(b.starts_at).getTime()}
