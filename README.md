@@ -17,13 +17,17 @@ npm start
 
 Use Expo Go for the current foundation. Development builds will be introduced when native-only services are added.
 
-## Supabase
+## Backend (Cloudflare)
 
-Copy `.env.example` to `.env.local` and enter the project URL and public anon key. Never place a service-role key in the app or commit it to source control.
+The app talks to one Cloudflare Worker in `api/`: Better Auth for accounts, D1 for data, R2 for files and a Durable
+Object for realtime updates. Copy `.env.example` to `.env.local` and set `EXPO_PUBLIC_API_URL` to the Worker URL.
+Server secrets live in the Worker, never in the app. See [api/README.md](api/README.md) for routes, migrations and tests.
 
-The database migrations in `supabase/migrations` keep membership verification and opportunity-status decisions server-controlled. They also persist course progress, the complete Events journey—including registrations, waitlists and cancellation—and the account journey for profile updates, profile photos, membership applications, and membership-verification requests.
+Membership verification and opportunity-status decisions stay server-controlled: submitting an application or
+verification request places an account into a pending state, and only an admin decision in the API activates verified
+membership access.
 
-Submitting an application or verification request places an eligible account into a pending state. Only trusted GWMB administrative code can activate verified membership access.
+The old `supabase/` folder is kept as a reference for the previous implementation and is no longer used by the app.
 
 ## Android builds
 
@@ -32,7 +36,7 @@ EAS Build is configured in `eas.json` with two Android profiles:
 - `preview` produces a signed APK for direct installation and internal testing.
 - `production` produces a signed Android App Bundle for Google Play.
 
-The project uses EAS-managed remote build numbers. The Supabase public URL and anon key must be stored in both the EAS `preview` and `production` environments because `.env.local` is intentionally excluded from cloud builds.
+The project uses EAS-managed remote build numbers. `EXPO_PUBLIC_API_URL` must be stored in both the EAS `preview` and `production` environments because `.env.local` is intentionally excluded from cloud builds.
 
 ```bash
 npx eas-cli@latest build --platform android --profile preview

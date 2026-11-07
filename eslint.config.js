@@ -5,6 +5,7 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*"],
+    // api/ (Cloudflare Worker) and supabase/ (Deno, reference only) have their own toolchains.
+    ignores: ["dist/*", "dist-web/*", "api/*", "supabase/*"],
   }
 ]);

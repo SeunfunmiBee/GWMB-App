@@ -21,7 +21,7 @@ The old `supabase/` folder stays in the repo as the reference implementation unt
 | 3. Replace RPCs and direct table access with API endpoints (authorization in code + tests) | Done |
 | 4. Move Edge Functions into the Worker; notification dispatch becomes a Cron Trigger | Done |
 | 5. Realtime over WebSockets (Durable Object), replacing Supabase realtime | Done |
-| 6. Remove `@supabase/supabase-js` from the app | Next |
+| 6. Remove `@supabase/supabase-js` from the app | Done |
 
 ### Phase 3 areas
 

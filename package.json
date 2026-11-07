@@ -7,7 +7,6 @@
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
-    "@supabase/supabase-js": "^2.117.1",
     "better-auth": "1.7.18",
     "expo": "~57.0.30",
     "expo-constants": "~57.0.22",
