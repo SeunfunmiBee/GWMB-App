@@ -115,7 +115,7 @@ npx wrangler d1 migrations apply gwmb --local
 npx wrangler dev --port 8799
 ```
 
-With `ENVIRONMENT=development` and no `RESEND_API_KEY`, emails are printed to the dev log. In any other environment a missing Resend config makes email sending fail rather than log the links.
+Email goes through Cloudflare Email Sending (the `EMAIL` send_email binding, from `NOTIFICATION_FROM_EMAIL` on the onboarded `notify.girlswhomeanbusiness.org` domain). With `ENVIRONMENT=development`, emails are printed to the dev log instead. In any other environment a missing binding or sender makes email sending fail rather than log the codes.
 
 If you add Better Auth plugins that need tables, regenerate the auth schema into a new migration:
 `npx @better-auth/cli generate --config scripts/auth-schema.config.ts --output migrations/<n>_auth.sql`
@@ -126,8 +126,9 @@ If you add Better Auth plugins that need tables, regenerate the auth schema into
 npx wrangler d1 create gwmb            # put the returned database_id into wrangler.jsonc
 npx wrangler r2 bucket create gwmb-files
 npx wrangler d1 migrations apply gwmb --remote
-# secrets.json (git-ignored): BETTER_AUTH_SECRET, SIGNING_SECRET, ADMIN_SECRET, RESEND_API_KEY, NOTIFICATION_FROM_EMAIL
-npx wrangler deploy --secrets-file secrets.json --var BETTER_AUTH_URL:https://gwmb-api.<subdomain>.workers.dev --var WEB_ORIGINS:https://<web app origin>
+# secrets.json (git-ignored): BETTER_AUTH_SECRET, SIGNING_SECRET, ADMIN_SECRET
+npx wrangler email sending enable notify.<your domain>   # Workers Paid; adds the DNS records on Cloudflare
+npx wrangler deploy --secrets-file secrets.json --var BETTER_AUTH_URL:https://api.<your domain> --var WEB_ORIGINS:https://<web app origin>
 ```
 
 Then set `EXPO_PUBLIC_API_URL` in `.env.local` and in EAS.

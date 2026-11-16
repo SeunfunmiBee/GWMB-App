@@ -15,6 +15,7 @@ export default defineConfig({
           ADMIN_SECRET: 'test-admin',
           MENTOR_WEBHOOK_SECRET: 'test-mentor-hook',
           ENVIRONMENT: 'development',
+          NOTIFICATION_FROM_EMAIL: '', // tests run without an email provider
         },
       },
     })),

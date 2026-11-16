@@ -2,6 +2,7 @@
 // Trigger, and on demand from the admin "send now" button. Rows are claimed with one UPDATE ... RETURNING, so
 // overlapping runs never deliver the same row twice.
 import { decode } from './db';
+import { emailConfigured, sendEmail } from './email';
 import type { Env } from './env';
 import { publish } from './live';
 import { nowIso } from './http';
@@ -180,16 +181,7 @@ export function categoryAllowed(key: string, preferences: Preferences | null) {
   return true;
 }
 
-const emailConfigured = (env: Env) => Boolean(env.RESEND_API_KEY && env.NOTIFICATION_FROM_EMAIL);
-
-async function sendHtmlEmail(env: Env, to: string, subject: string, text: string) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: env.NOTIFICATION_FROM_EMAIL, to: [to], subject, text, html: emailHtml(subject, text) }),
-  });
-  if (!res.ok) throw new Error(`Email provider returned ${res.status}`);
-}
+const sendHtmlEmail = (env: Env, to: string, subject: string, text: string) => sendEmail(env, to, subject, text, emailHtml(subject, text));
 
 function parse(value: string): Record<string, unknown> {
   try { return JSON.parse(value) as Record<string, unknown>; } catch { return {}; }

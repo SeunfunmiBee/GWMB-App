@@ -9,6 +9,7 @@
     { "binding": "DB", "database_name": "gwmb", "database_id": "d4f3e29d-211f-4f44-933c-a8ed60966877", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "gwmb-files" }],
+  "send_email": [{ "name": "EMAIL" }],
   "durable_objects": { "bindings": [{ "name": "LIVE", "class_name": "LiveHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LiveHub"] }],
   "triggers": { "crons": ["* * * * *"] }, // notification dispatch
@@ -17,9 +18,10 @@
   "vars": {
     "APP_SCHEME": "gwmb",
     "BETTER_AUTH_URL": "https://api.girlswhomeanbusiness.org",
-    "WEB_ORIGINS": "http://localhost:8081"
+    "WEB_ORIGINS": "http://localhost:8081",
+    "NOTIFICATION_FROM_EMAIL": "no-reply@notify.girlswhomeanbusiness.org"
   }
   // Secrets (wrangler secret put): BETTER_AUTH_SECRET, SIGNING_SECRET,
-  // ADMIN_SECRET, RESEND_API_KEY, NOTIFICATION_FROM_EMAIL; optional MENTOR_WEBHOOK_SECRET and GOOGLE_CLIENT_ID,
+  // ADMIN_SECRET; optional MENTOR_WEBHOOK_SECRET and GOOGLE_CLIENT_ID,
   // GOOGLE_CLIENT_SECRET, GOOGLE_TOKEN_ENCRYPTION_KEY. See README.
 }

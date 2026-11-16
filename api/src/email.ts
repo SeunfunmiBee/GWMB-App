@@ -1,20 +1,17 @@
 import type { Env } from './env';
 
-// Transactional email through Resend (same provider the Supabase functions used).
-export async function sendEmail(env: Env, to: string, subject: string, text: string) {
-  if (!env.RESEND_API_KEY || !env.NOTIFICATION_FROM_EMAIL) {
-    // Only local dev may print emails (they contain sign-in and reset links). Everywhere else, fail closed.
-    if (env.ENVIRONMENT === 'development') {
-      console.warn(`[dev email] to=${to} subject=${subject}
+const SENDER_NAME = 'Girls Who Mean Business';
+
+export const emailConfigured = (env: Env) => Boolean(env.EMAIL && env.NOTIFICATION_FROM_EMAIL);
+
+// Transactional email through Cloudflare Email Sending (the `EMAIL` send_email binding).
+export async function sendEmail(env: Env, to: string, subject: string, text: string, html?: string) {
+  // Only local dev may print emails (they contain sign-in codes). Everywhere else, fail closed.
+  if (env.ENVIRONMENT === 'development') {
+    console.warn(`[dev email] to=${to} subject=${subject}
 ${text}`);
-      return;
-    }
-    throw new Error('Email is not configured.');
+    return;
   }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: env.NOTIFICATION_FROM_EMAIL, to, subject, text }),
-  });
-  if (!res.ok) throw new Error(`Email delivery failed (${res.status}).`);
+  if (!emailConfigured(env)) throw new Error('Email is not configured.');
+  await env.EMAIL!.send({ from: { email: env.NOTIFICATION_FROM_EMAIL!, name: SENDER_NAME }, to, subject, text, ...(html ? { html } : {}) });
 }
