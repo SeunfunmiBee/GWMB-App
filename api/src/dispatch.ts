@@ -2,7 +2,7 @@
 // Trigger, and on demand from the admin "send now" button. Rows are claimed with one UPDATE ... RETURNING, so
 // overlapping runs never deliver the same row twice.
 import { decode } from './db';
-import { emailConfigured, sendEmail } from './email';
+import { emailConfigured, renderEmail, sendEmail, type EmailContent } from './email';
 import type { Env } from './env';
 import { publish } from './live';
 import { nowIso } from './http';
@@ -70,7 +70,7 @@ async function deliver(env: Env, row: OutboxRow): Promise<Outcome> {
       const user = await env.DB.prepare('select email from "user" where id = ?').bind(row.user_id).first<{ email: string }>();
       const to = String(payload.email ?? user?.email ?? '');
       if (!to || !emailConfigured(env)) throw new Skip('Email provider is not configured');
-      await sendHtmlEmail(env, to, title, text);
+      await sendHtmlEmail(env, to, title, text, { title, body: text });
     }
     await finish(env, 'notification_outbox', row.id, 'sent');
     return 'sent';
@@ -156,7 +156,8 @@ async function deliverMentor(env: Env, row: MentorRow): Promise<Outcome> {
       throw new Skip(pending ? 'Mentor email needs confirmation' : 'Email provider is not configured');
     }
     const subject = mentorEmailTitle(row.template_key, payload);
-    await sendHtmlEmail(env, row.recipient_email, subject, mentorEmailBody(row.template_key, payload));
+    const { text, html } = mentorEmailBody(row.template_key, payload);
+    await sendHtmlEmail(env, row.recipient_email, subject, text, { title: subject, ...html });
     await finish(env, 'mentor_communication_outbox', row.id, 'sent');
     return 'sent';
   } catch (error) {
@@ -181,7 +182,7 @@ export function categoryAllowed(key: string, preferences: Preferences | null) {
   return true;
 }
 
-const sendHtmlEmail = (env: Env, to: string, subject: string, text: string) => sendEmail(env, to, subject, text, emailHtml(subject, text));
+const sendHtmlEmail = (env: Env, to: string, subject: string, text: string, content: EmailContent) => sendEmail(env, to, subject, text, renderEmail(env, content));
 
 function parse(value: string): Record<string, unknown> {
   try { return JSON.parse(value) as Record<string, unknown>; } catch { return {}; }
@@ -208,11 +209,10 @@ function mentorEmailBody(key: string, payload: Record<string, unknown>) {
     : 'the scheduled time';
   const link = String(payload.meeting_url ?? '');
   const prefix = key.includes('confirmed') ? 'Your GWMB mentorship session is confirmed.' : 'A reminder about your upcoming GWMB mentorship session.';
-  return `${prefix} It is scheduled for ${start}.${link ? ` Meeting link: ${link}` : ' GWMB Admin will share the meeting link separately.'}`;
+  const intro = `${prefix} It is scheduled for ${start}.`;
+  const text = `${intro}${link ? ` Meeting link: ${link}` : ' GWMB Admin will share the meeting link separately.'}`;
+  // Only https links become a button; anything else stays readable in the body.
+  return /^https:\/\//i.test(link)
+    ? { text, html: { body: intro, action: { label: 'Join the meeting', url: link } } }
+    : { text, html: { body: text } };
 }
-
-function emailHtml(title: string, body: string) {
-  return `<!doctype html><html><body style="margin:0;background:#f7f5f6;font-family:Arial,sans-serif;color:#111"><div style="max-width:560px;margin:auto;padding:40px 20px"><div style="background:white;border-radius:24px;padding:32px"><p style="color:#a81455;font-size:12px;font-weight:700;letter-spacing:1px">GWMB UPDATE</p><h1 style="font-size:26px">${escapeHtml(title)}</h1><p style="color:#655f62;font-size:15px;line-height:1.6">${escapeHtml(body)}</p></div></div></body></html>`;
-}
-
-const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' })[ch]!);

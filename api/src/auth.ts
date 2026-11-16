@@ -2,7 +2,7 @@ import { expo } from '@better-auth/expo';
 import { betterAuth } from 'better-auth';
 import { bearer, emailOTP } from 'better-auth/plugins';
 import { authOptions } from './auth-options';
-import { sendEmail } from './email';
+import { renderEmail, sendEmail } from './email';
 import type { Env } from './env';
 
 const OTP_SUBJECTS = {
@@ -46,7 +46,9 @@ export function createAuth(env: Env) {
         expiresIn: 10 * 60,
         allowedAttempts: 5,
         sendVerificationOTP: async ({ email, otp, type }) => {
-          await sendEmail(env, email, OTP_SUBJECTS[type], `Your code is ${otp}. It expires in 10 minutes.\n\nIf you did not request this, you can ignore this email.`);
+          const ignore = 'If you did not request this, you can safely ignore this email.';
+          await sendEmail(env, email, OTP_SUBJECTS[type], `Your code is ${otp}. It expires in 10 minutes.\n\n${ignore}`,
+            renderEmail(env, { title: OTP_SUBJECTS[type], body: 'Enter this code in the GWMB app. It expires in 10 minutes.', code: otp, footnote: ignore }));
         },
       }),
     ],

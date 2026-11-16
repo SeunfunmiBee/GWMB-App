@@ -3,7 +3,7 @@
 // `get_my_membership_details` (202610200001, 202610150001) and the `membership-email-otp` Edge Function.
 // Status side effects (pending / verified / expired) are SQLite triggers in 0004_membership_triggers.sql.
 import { z } from 'zod';
-import { sendEmail } from '../email';
+import { renderEmail, sendEmail } from '../email';
 import type { Env } from '../env';
 import { body, HttpError, nowIso, requireUser, router } from '../http';
 import { timingSafeEqual } from '../identity';
@@ -191,7 +191,10 @@ membership.post('/email-code/send', async (c) => {
     new Date(Date.now() - ATTEMPT_WINDOW_MS).toISOString()).run();
 
   try {
-    await sendEmail(c.env, request.membership_email, 'Your GWMB membership verification code', `Enter this code in the GWMB app to confirm your membership email: ${code}\n\nIt expires in 10 minutes. If you did not request this, you can ignore this email.`);
+    const subject = 'Your GWMB membership verification code';
+    const ignore = 'If you did not request this, you can safely ignore this email.';
+    await sendEmail(c.env, request.membership_email, subject, `Enter this code in the GWMB app to confirm your membership email: ${code}\n\nIt expires in 10 minutes. ${ignore}`,
+      renderEmail(c.env, { title: 'Confirm your membership email', body: 'Enter this code in the GWMB app to confirm your membership email. It expires in 10 minutes.', code, footnote: ignore }));
   } catch {
     // Expire the undelivered code but keep the row, so the attempt budget is not reset.
     await c.env.DB.prepare('update membership_email_challenges set expires_at = ? where user_id = ?').bind(new Date(0).toISOString(), userId).run();

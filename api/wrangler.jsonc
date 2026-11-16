@@ -8,6 +8,7 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "gwmb", "database_id": "d4f3e29d-211f-4f44-933c-a8ed60966877", "migrations_dir": "migrations" }
   ],
+  "assets": { "directory": "./public" }, // email-logo.png for email headers
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "gwmb-files" }],
   "send_email": [{ "name": "EMAIL" }],
   "durable_objects": { "bindings": [{ "name": "LIVE", "class_name": "LiveHub" }] },

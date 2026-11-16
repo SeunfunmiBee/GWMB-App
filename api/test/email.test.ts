@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sendEmail } from '../src/email';
+import { renderEmail, sendEmail } from '../src/email';
 import type { Env } from '../src/env';
 
 function fakeEnv(overrides: Partial<Env> = {}) {
@@ -21,6 +21,19 @@ describe('sendEmail', () => {
   it('fails closed outside development when email is not configured', async () => {
     const { env } = fakeEnv({ NOTIFICATION_FROM_EMAIL: undefined });
     await expect(sendEmail(env, 'member@example.com', 'Your code', 'x')).rejects.toThrow('Email is not configured.');
+  });
+
+  it('renders codes, https buttons and escaped text in the branded template', () => {
+    const html = renderEmail({ BETTER_AUTH_URL: 'https://api.example.org/' }, {
+      title: 'Hi <you>', body: 'First line.\n\nSecond & last.', code: '123456', action: { label: 'Join', url: 'https://meet.example.com/x' }, footnote: 'Ignore me',
+    });
+    expect(html).toContain('src="https://api.example.org/email-logo.png"');
+    expect(html).toContain('Hi &lt;you&gt;');
+    expect(html).toContain('Second &amp; last.');
+    expect(html).toContain('>123456</div>');
+    expect(html).toContain('href="https://meet.example.com/x"');
+    expect(html).toContain('Ignore me');
+    expect(renderEmail({ BETTER_AUTH_URL: 'https://api.example.org' }, { title: 't', body: 'b', action: { label: 'x', url: 'javascript:alert(1)' } })).not.toContain('javascript:');
   });
 
   it('prints instead of sending in local development', async () => {
