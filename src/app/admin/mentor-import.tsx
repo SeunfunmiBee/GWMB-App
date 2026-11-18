@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { applyMentorColumnMapping, mentorImportFields, pickMentorImportFile, type MentorImportResult } from '@/lib/mentor-import';
@@ -16,7 +16,7 @@ export default function MentorImportReview(){
   async function choose(){try{const picked=await pickMentorImportFile();if(!picked)return;const admin=await loadAdminMentorship();const existing=new Set(admin.mentors.map(item=>item.operations?.email.toLowerCase()).filter(Boolean));setDuplicates(picked.rows.map(row=>String(row.email||'').toLowerCase()).filter(email=>existing.has(email)));setResult(picked)}catch(error){Alert.alert('Could not read file',error instanceof Error?error.message:'Choose a CSV or Excel file and try again.') }}
   function map(header:string,field:string){if(!result)return;setResult({...result,mapping:{...result.mapping,[header]:field}});setChoice(null)}
   async function runImport(){if(!mapped?.rows.length)return;setImporting(true);let success=0;const failures:string[]=[];for(const[index,row]of mapped.rows.entries()){const response=await importMentorSubmission(row);if(response.error)failures.push(`Row ${index+2}: ${response.error.message}`);else success++}setImporting(false);if(failures.length)Alert.alert('Import finished with issues',`${success} records added or updated.\n\n${failures.slice(0,6).join('\n')}`);else Alert.alert('Mentors imported',`${success} mentor record${success===1?'':'s'} added or updated.`,[{text:'View mentors',onPress:()=>router.replace('/admin/mentorship?tab=mentors' as never)}])}
-  function template(){const headers=mentorImportFields.slice(1).map(([,label])=>label).join(',');void Linking.openURL(`data:text/csv;charset=utf-8,${encodeURIComponent(headers+'\n')}`)}
+  function template(){const headers=mentorImportFields.slice(1).map(([,label])=>label).join(',');/* native can't open data: URLs; share the header row instead */if(Platform.OS!=='web'){void Share.share({title:'Mentor import template',message:headers});return}void Linking.openURL(`data:text/csv;charset=utf-8,${encodeURIComponent(headers+'\n')}`)}
   return <Screen><PageHeader title="Import mentors"/>
     <View style={styles.head}><View style={styles.headIcon}><Ionicons name="cloud-upload-outline" size={24} color="white"/></View><View style={styles.flex}><Text style={styles.title}>Review before import</Text><Text style={styles.copy}>Map the spreadsheet once, check the preview, then add or update mentor records by email.</Text></View></View>
     <View style={styles.actionRow}><Pressable onPress={()=>void choose()} style={styles.primary}><Ionicons name="document-attach-outline" size={17} color="white"/><Text style={styles.primaryText}>{result?'Choose another file':'Choose Excel / CSV'}</Text></Pressable><Pressable onPress={template} style={styles.secondary}><Ionicons name="download-outline" size={17} color={colors.ink}/><Text style={styles.secondaryText}>Template</Text></Pressable></View>
