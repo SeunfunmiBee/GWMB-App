@@ -88,7 +88,8 @@ export async function sendVerificationCode(email: string): Promise<Result> {
 export async function verifyEmail(email: string, code: string): Promise<Result<AppUser | null>> {
   const { data, error } = await authClient.emailOtp.verifyEmail({ email: email.trim().toLowerCase(), otp: code.trim() });
   if (error || !data) return { data: null, error: message(error, 'That code is not valid.') };
-  await authClient.getSession({ query: { disableCookieCache: true } });
+  // Load the new session into the shared store (what useSession reads) before the caller navigates.
+  await authClient.$store.atoms.session.get().refetch({ query: { disableCookieCache: true } });
   return { data: toAppUser(data.user), error: null };
 }
 
@@ -134,7 +135,8 @@ export async function authHeaders(): Promise<Record<string, string>> {
     const token = readWebToken();
     return token ? { authorization: `Bearer ${token}` } : {};
   }
-  const cookie = (authClient as unknown as { getCookie: () => string }).getCookie();
+  const getCookieFn = (authClient as unknown as { getCookie?: () => Promise<string> }).getCookie;
+  const cookie = typeof getCookieFn === 'function' ? await getCookieFn().catch(() => '') : '';
   return cookie ? { cookie } : {};
 }
 

@@ -44,6 +44,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const user = useMemo(() => (sessionUser ? toAppUser(sessionUser) : null), [sessionUser]);
   const userId = user?.id ?? null;
 
+  // Better Auth sets isPending again on every sign-up/sign-in/verify while signed out. `loading` must cover only the
+  // first check: the root layout unmounts the navigator while loading, which threw users back to Home mid sign-up.
+  const [ready, setReady] = useState(false);
+  if (!isPending && !ready) setReady(true);
+
   // Account data is keyed by the user it was loaded for, so a stale response never shows for another user.
   const [loaded, setLoaded] = useState<LoadedAccount | null>(null);
   useEffect(() => {
@@ -87,14 +92,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     isAdmin: account.isAdmin,
     isChapterAdmin: account.chapterAdminAccess.length > 0,
     chapterAdminAccess: account.chapterAdminAccess,
-    loading: isPending,
+    loading: !ready,
     accountLoading: isPending || (Boolean(userId) && !current),
     accountError: current?.error ?? null,
     sessionExpired,
     clearSessionExpired,
     refreshAccount,
     signOut,
-  }), [account, clearSessionExpired, current, isPending, refreshAccount, sessionExpired, signOut, user, userId]);
+  }), [account, clearSessionExpired, current, isPending, ready, refreshAccount, sessionExpired, signOut, user, userId]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
