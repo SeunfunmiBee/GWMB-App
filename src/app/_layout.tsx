@@ -8,6 +8,7 @@ import { useFonts } from 'expo-font';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { colors } from '@/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
@@ -57,6 +58,7 @@ function AppNavigator() {
       <Stack.Screen name="events" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="registration/[id]" options={{ animation: 'slide_from_right' }} />
     </Stack>
+    <FeatureGate />
   </>;
 }
 
@@ -67,13 +69,18 @@ const protectedFeatures: { prefix: string; key: LaunchFeatureKey }[] = [
   { prefix: '/mentorship-application', key: 'one_to_one_mentorship' },
 ];
 
-function FeatureControlledNavigator() {
+// Drawn over the navigator, never instead of it: unmounting the Stack resets it to Home, which hid this gate
+// and bounced people back without explanation. Guests are sent to sign in; signed-in users see why it is closed.
+function FeatureGate() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const { loading, access } = useFeatureFlags();
   const feature = protectedFeatures.find(item => pathname.startsWith(item.prefix));
   const state = feature ? access(feature.key) : 'allowed';
-  if (!loading && state !== 'allowed') return <FeatureAccessGate reason={state} />;
-  return <AppNavigator />;
+  const blocked = !loading && state !== 'allowed';
+  useEffect(() => { if (blocked && !user) router.replace('/sign-in'); }, [blocked, user]);
+  if (!blocked || !user) return null;
+  return <View style={StyleSheet.absoluteFill}><FeatureAccessGate reason={state} /></View>;
 }
 
 export default function RootLayout() {
@@ -81,7 +88,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
   return (
     <AppErrorBoundary><SafeAreaProvider><ConnectivityProvider><OperationalErrorBridge/>
-      <AuthProvider><FeatureFlagProvider><FeatureControlledNavigator /></FeatureFlagProvider></AuthProvider>
+      <AuthProvider><FeatureFlagProvider><AppNavigator /></FeatureFlagProvider></AuthProvider>
       <ConnectivityNotice />
     </ConnectivityProvider></SafeAreaProvider></AppErrorBoundary>
   );
