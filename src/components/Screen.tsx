@@ -2,11 +2,15 @@ import type { PropsWithChildren } from 'react';
 import { Platform, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useWideLayout } from '@/lib/wide-layout';
 import { colors } from '@/theme';
 
-type Props = PropsWithChildren<ScrollViewProps & { scroll?: boolean }>;
+// form: in the wide admin layout, cap at a comfortable reading width for long forms.
+type Props = PropsWithChildren<ScrollViewProps & { scroll?: boolean; form?: boolean }>;
 
-export function Screen({ children, scroll = true, contentContainerStyle, ...props }: Props) {
+export function Screen({ children, scroll = true, form = false, contentContainerStyle, ...props }: Props) {
+  const wide = useWideLayout();
+  const innerStyle = [styles.inner, Platform.OS === 'web' && styles.webInner, wide && styles.wideInner, wide && form && styles.formInner];
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {scroll ? (
@@ -15,10 +19,10 @@ export function Screen({ children, scroll = true, contentContainerStyle, ...prop
           contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
           {...props}
         >
-          <View style={[styles.inner, Platform.OS === 'web' && styles.webInner]}>{children}</View>
+          <View style={innerStyle}>{children}</View>
         </ScrollView>
       ) : (
-        <View style={[styles.scrollContent, styles.fill]}><View style={[styles.inner, styles.fill, Platform.OS === 'web' && styles.webInner]}>{children}</View></View>
+        <View style={[styles.scrollContent, styles.fill]}><View style={[innerStyle, styles.fill]}>{children}</View></View>
       )}
     </SafeAreaView>
   );
@@ -33,5 +37,7 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     minWidth: 0,
   },
+  wideInner: { width: '100%', maxWidth: 1160, paddingHorizontal: 32, paddingTop: 18 },
+  formInner: { maxWidth: 860 },
   fill: { flex: 1 },
 });

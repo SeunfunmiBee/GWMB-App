@@ -648,9 +648,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tabOn: { backgroundColor: "white", borderWidth: 1, borderColor: "#E0DDE0" },
-  tabText: { fontFamily: fonts.bodyBold, fontSize: 8.5, color: colors.muted },
+  tabText: { fontFamily: fonts.bodyBold, fontSize:13, color: colors.muted },
   tabTextOn: { color: colors.ink },
-  tabCount: { fontFamily: fonts.bodyBold, fontSize: 7.5, color: colors.muted },
+  tabCount: { fontFamily: fonts.bodyBold, fontSize:12, color: colors.muted },
   tabCountOn: { color: colors.ink },
   notice: {
     minHeight: 72,
@@ -676,13 +676,13 @@ const styles = StyleSheet.create({
   noticeIconError: { backgroundColor: "#B31C52" },
   noticeTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 11.5,
+    fontSize:15,
     color: colors.ink,
   },
   noticeCopy: {
     fontFamily: fonts.body,
-    fontSize: 9,
-    lineHeight: 14,
+    fontSize:13.5,
+    lineHeight:18,
     color: colors.muted,
     marginTop: 3,
   },
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   heading: { fontFamily: fonts.heading, fontSize: 27, color: colors.ink },
   headingMeta: {
     fontFamily: fonts.body,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.muted,
     marginTop: 2,
   },
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 8,
+    fontSize:12.5,
     letterSpacing: 0.65,
     color: "#6C676B",
   },
@@ -753,7 +753,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 12,
   },
-  primaryText: { fontFamily: fonts.bodyBold, fontSize: 10.5, color: "white" },
+  primaryText: { fontFamily: fonts.bodyBold, fontSize:13.5, color: "white" },
   search: {
     height: 52,
     borderRadius: 14,
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: "100%",
     fontFamily: fonts.body,
-    fontSize: 11.5,
+    fontSize:15,
     color: colors.ink,
     outlineStyle: "none",
   } as never,
@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
   },
   loadMoreText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.ink,
   },
   record: {
@@ -816,7 +816,7 @@ const styles = StyleSheet.create({
   },
   recordEmail: {
     fontFamily: fonts.body,
-    fontSize: 9.5,
+    fontSize:12.5,
     color: colors.muted,
     marginTop: 3,
   },
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   linkBadgeOn: { backgroundColor: "#E2F4ED" },
-  linkText: { fontFamily: fonts.bodyBold, fontSize: 7, color: "#686368" },
+  linkText: { fontFamily: fonts.bodyBold, fontSize:11, color: "#686368" },
   linkTextOn: { color: "#087553" },
   recordMeta: {
     flexDirection: "row",
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 8.5,
+    fontSize:13,
     color: "#6A6569",
     textTransform: "capitalize",
   },
@@ -867,7 +867,7 @@ const styles = StyleSheet.create({
   },
   status: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7.5,
+    fontSize:12,
     color: "#656165",
     backgroundColor: "#F0EFF0",
     paddingHorizontal: 7,
@@ -883,21 +883,21 @@ const styles = StyleSheet.create({
   },
   reviewLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7.5,
+    fontSize:12,
     letterSpacing: 0.65,
     color: "#787277",
   },
   reviewValue: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 12,
+    fontSize:13,
     color: colors.ink,
     marginTop: 3,
   },
   good: { color: "#087553" },
   reviewNote: {
     fontFamily: fonts.body,
-    fontSize: 9.5,
-    lineHeight: 15,
+    fontSize:12.5,
+    lineHeight:19.5,
     color: colors.muted,
     marginTop: 10,
   },
@@ -909,14 +909,14 @@ const styles = StyleSheet.create({
   },
   answerLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7.5,
+    fontSize:12,
     letterSpacing: 0.7,
     color: "#6A6569",
   },
   answerText: {
     fontFamily: fonts.body,
-    fontSize: 10.5,
-    lineHeight: 16,
+    fontSize:13.5,
+    lineHeight:21,
     color: colors.ink,
     marginTop: 5,
   },
@@ -929,7 +929,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  approveText: { fontFamily: fonts.bodyBold, fontSize: 9.5, color: "white" },
+  approveText: { fontFamily: fonts.bodyBold, fontSize:12.5, color: "white" },
   reject: {
     minHeight: 44,
     borderRadius: 12,
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rejectText: { fontFamily: fonts.bodyBold, fontSize: 9.5, color: colors.ink },
+  rejectText: { fontFamily: fonts.bodyBold, fontSize:12.5, color: colors.ink },
   disabled: { opacity: 0.4 },
   empty: {
     minHeight: 105,
@@ -952,8 +952,8 @@ const styles = StyleSheet.create({
   },
   body: {
     fontFamily: fonts.body,
-    fontSize: 10,
-    lineHeight: 16,
+    fontSize:13,
+    lineHeight:21,
     color: colors.muted,
     marginTop: 6,
   },

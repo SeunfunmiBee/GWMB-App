@@ -42,3 +42,7 @@ supabase/.temp/
 # generated native folders
 /ios
 /android
+
+# Web admin build
+dist-admin/
+.wrangler/

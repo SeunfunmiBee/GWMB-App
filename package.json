@@ -54,7 +54,10 @@
     "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor",
     "flow:check": "node scripts/flow-check.mjs",
-    "release:check": "node scripts/release-check.mjs"
+    "release:check": "node scripts/release-check.mjs",
+    "admin:start": "node scripts/admin.mjs start",
+    "admin:build": "node scripts/admin.mjs build",
+    "admin:deploy": "node scripts/admin.mjs deploy"
   },
   "private": true
 }

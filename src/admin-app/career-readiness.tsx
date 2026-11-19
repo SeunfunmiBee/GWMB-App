@@ -262,7 +262,7 @@ export default function CareerReadinessAdmin() {
         <Pressable
           onPress={() =>
             router.push(
-              "/admin/builder?type=event&program=career-support" as never,
+              "/builder?type=event&program=career-support" as never,
             )
           }
           style={styles.add}
@@ -426,8 +426,8 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: fonts.heading, fontSize: 27, color: colors.ink },
   pageCopy: {
     fontFamily: fonts.body,
-    fontSize: 9.5,
-    lineHeight: 14,
+    fontSize:12.5,
+    lineHeight:18,
     color: colors.muted,
     maxWidth: 310,
     marginTop: 4,
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.heading, fontSize: 22, color: colors.ink },
   statLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 6.5,
+    fontSize:10.5,
     letterSpacing: 0.7,
     color: colors.muted,
     marginTop: 3,
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: "100%",
     fontFamily: fonts.bodyMedium,
-    fontSize: 10,
+    fontSize:13,
     color: colors.ink,
     outlineStyle: "none",
   } as never,
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   },
   queueMeta: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 8.5,
+    fontSize:13,
     color: colors.muted,
     marginBottom: 9,
   },
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   filterOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   filterText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7.5,
+    fontSize:12,
     color: colors.muted,
   },
   filterTextOn: { color: "white" },
@@ -530,25 +530,25 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 11.5,
+    fontSize:15,
     color: colors.ink,
     textTransform: "capitalize",
   },
   rowMeta: {
     fontFamily: fonts.body,
-    fontSize: 8.5,
+    fontSize:13,
     color: colors.muted,
     marginTop: 4,
   },
   rowConsent: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7,
+    fontSize:11,
     color: "#665E63",
     marginTop: 5,
   },
   status: {
     fontFamily: fonts.bodyBold,
-    fontSize: 6.8,
+    fontSize:11,
     color: colors.pinkDeep,
     backgroundColor: colors.pinkSoft,
     paddingHorizontal: 7,
@@ -567,12 +567,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 12,
+    fontSize:13,
     color: colors.ink,
   },
   emptyCopy: {
     fontFamily: fonts.body,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.muted,
     marginTop: 4,
   },
@@ -590,15 +590,15 @@ const styles = StyleSheet.create({
   },
   loadMoreText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.ink,
   },
   back: { height: 40, flexDirection: "row", alignItems: "center", gap: 8 },
-  backText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.ink },
+  backText: { fontFamily: fonts.bodyBold, fontSize:13.5, color: colors.ink },
   detailHero: { borderRadius: 24, backgroundColor: "#171218", padding: 19 },
   detailType: {
     fontFamily: fonts.bodyBold,
-    fontSize: 8,
+    fontSize:12.5,
     letterSpacing: 1,
     color: "#F0A7C8",
   },
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   },
   detailMeta: {
     fontFamily: fonts.body,
-    fontSize: 10,
+    fontSize:13,
     color: "#D4CAD0",
     marginTop: 5,
   },
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
   consentText: {
     flex: 1,
     fontFamily: fonts.bodyBold,
-    fontSize: 8,
+    fontSize:12.5,
     color: colors.ink,
   },
   facts: {
@@ -645,14 +645,14 @@ const styles = StyleSheet.create({
   },
   factLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7,
+    fontSize:11,
     letterSpacing: 0.8,
     color: colors.pinkDeep,
   },
   factValue: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 10.5,
-    lineHeight: 16,
+    fontSize:13.5,
+    lineHeight:21,
     color: colors.ink,
     marginTop: 4,
   },
@@ -668,18 +668,18 @@ const styles = StyleSheet.create({
   },
   documentTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 10.5,
+    fontSize:13.5,
     color: colors.ink,
   },
   documentMeta: {
     fontFamily: fonts.body,
-    fontSize: 8,
+    fontSize:12.5,
     color: colors.muted,
     marginTop: 3,
   },
   label: {
     fontFamily: fonts.bodyBold,
-    fontSize: 7.5,
+    fontSize:12,
     letterSpacing: 0.9,
     color: colors.pinkDeep,
     marginTop: 18,
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
     padding: 14,
     textAlignVertical: "top",
     fontFamily: fonts.bodyMedium,
-    fontSize: 11,
+    fontSize:14.5,
     lineHeight: 17,
     color: colors.ink,
     outlineStyle: "none",
@@ -712,5 +712,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  actionText: { fontFamily: fonts.bodyBold, fontSize: 8.5, color: colors.ink },
+  actionText: { fontFamily: fonts.bodyBold, fontSize:13, color: colors.ink },
 });

@@ -486,7 +486,7 @@ export default function EducationBuilder() {
       );
     } else {
       Alert.alert("Saved", `This ${type} is now in the central library.`);
-      router.replace("/admin/education" as never);
+      router.replace("/education" as never);
     }
   }
   async function meet() {
@@ -502,12 +502,12 @@ export default function EducationBuilder() {
   }
   if (busy)
     return (
-      <Screen scroll={false}>
+      <Screen form scroll={false}>
         <ActivityIndicator style={{ marginTop: 220 }} color={colors.pinkDeep} />
       </Screen>
     );
   return (
-    <Screen>
+    <Screen form>
       <PageHeader eyebrow={labels[type].toUpperCase()} title={title} />
       <View style={styles.banner}>
         <View style={styles.bannerIcon}>
@@ -606,18 +606,6 @@ export default function EducationBuilder() {
       )}
       <Targeting meta={meta} setMeta={setMeta} />
       <Publishing draft={draft} setDraft={setDraft} />
-      {type === "course" && draft.id ? (
-        <Pressable
-          onPress={() =>
-            router.push(`/course/${draft.slug}?previewId=${draft.id}` as never)
-          }
-          style={styles.preview}
-        >
-          <Ionicons name="eye-outline" size={19} color={colors.ink} />
-          <Text style={styles.previewText}>Preview course as a learner</Text>
-          <Ionicons name="arrow-forward" size={17} color={colors.ink} />
-        </Pressable>
-      ) : null}
       <Pressable disabled={saving} onPress={save} style={styles.save}>
         {saving ? (
           <ActivityIndicator color="white" />
@@ -1832,14 +1820,14 @@ const styles = StyleSheet.create({
   bannerTitle: { fontFamily: fonts.headingBold, fontSize: 14, color: "white" },
   bannerCopy: {
     fontFamily: fonts.body,
-    fontSize: 9,
-    lineHeight: 14,
+    fontSize:13.5,
+    lineHeight:18,
     color: "#D4CDD2",
     marginTop: 3,
   },
   label: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9.5,
+    fontSize:12.5,
     letterSpacing: 0.7,
     color: colors.ink,
     marginTop: 17,
@@ -1871,8 +1859,8 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontFamily: fonts.body,
-    fontSize: 8.5,
-    lineHeight: 13,
+    fontSize:13,
+    lineHeight:17,
     color: colors.muted,
     marginTop: 3,
   },
@@ -1889,15 +1877,15 @@ const styles = StyleSheet.create({
   },
   uploadText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9.5,
+    fontSize:12.5,
     color: colors.pinkDeep,
   },
   section: { marginTop: 27, marginBottom: 2 },
   sectionTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
   sectionCopy: {
     fontFamily: fonts.body,
-    fontSize: 9.5,
-    lineHeight: 15,
+    fontSize:12.5,
+    lineHeight:19.5,
     color: colors.muted,
     marginTop: 4,
   },
@@ -1917,7 +1905,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 8.5,
+    fontSize:13,
     color: colors.muted,
     textTransform: "capitalize",
   },
@@ -1935,7 +1923,7 @@ const styles = StyleSheet.create({
   },
   toggleTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 11.5,
+    fontSize:15,
     color: colors.ink,
   },
   lesson: {
@@ -1957,13 +1945,13 @@ const styles = StyleSheet.create({
   },
   lessonNumberText: {
     fontFamily: fonts.headingBold,
-    fontSize: 10,
+    fontSize:13,
     color: "white",
   },
   lessonTitle: {
     flex: 1,
     fontFamily: fonts.headingBold,
-    fontSize: 12,
+    fontSize:13,
     color: colors.ink,
     paddingHorizontal: 9,
   },
@@ -1982,7 +1970,7 @@ const styles = StyleSheet.create({
   },
   lessonSectionTitle: {
     fontFamily: fonts.bodyBold,
-    fontSize: 8.5,
+    fontSize:13,
     letterSpacing: 0.7,
     color: colors.pinkDeep,
   },
@@ -1998,7 +1986,7 @@ const styles = StyleSheet.create({
   },
   addSectionText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.ink,
   },
   advancedAdmin: {
@@ -2020,7 +2008,7 @@ const styles = StyleSheet.create({
   secureOfferHead: { flexDirection: "row", gap: 10, alignItems: "center" },
   secureOfferTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 12,
+    fontSize:13,
     color: colors.ink,
   },
   inlineField: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
@@ -2049,7 +2037,7 @@ const styles = StyleSheet.create({
   },
   addLessonText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 10,
+    fontSize:13,
     color: colors.pinkDeep,
   },
   reminders: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 13 },
@@ -2064,7 +2052,7 @@ const styles = StyleSheet.create({
   },
   reminderText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 8,
+    fontSize:12.5,
     color: colors.pinkDeep,
   },
   meet: {
@@ -2079,7 +2067,7 @@ const styles = StyleSheet.create({
   },
   meetTitle: {
     fontFamily: fonts.headingBold,
-    fontSize: 11.5,
+    fontSize:15,
     color: colors.ink,
   },
   uploadFile: {
@@ -2096,7 +2084,7 @@ const styles = StyleSheet.create({
   },
   uploadFileText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 10,
+    fontSize:13,
     color: colors.pinkDeep,
   },
   uploadStatus: {
@@ -2127,12 +2115,12 @@ const styles = StyleSheet.create({
   uploadStatusText: {
     flex: 1,
     fontFamily: fonts.bodyBold,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.ink,
   },
   uploadAction: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9,
+    fontSize:13.5,
     color: colors.pinkDeep,
   },
   preview: {
@@ -2150,7 +2138,7 @@ const styles = StyleSheet.create({
   previewText: {
     flex: 1,
     fontFamily: fonts.headingBold,
-    fontSize: 11,
+    fontSize:14.5,
     color: colors.ink,
   },
   save: {
@@ -2163,5 +2151,5 @@ const styles = StyleSheet.create({
     gap: 9,
     marginTop: 12,
   },
-  saveText: { fontFamily: fonts.headingBold, fontSize: 12, color: "white" },
+  saveText: { fontFamily: fonts.headingBold, fontSize:13, color: "white" },
 });

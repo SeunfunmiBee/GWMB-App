@@ -1,0 +1,9 @@
+{
+  // Static hosting for the web admin. Build first: npm run admin:build (writes ../dist-admin).
+  "$schema": "../api/node_modules/wrangler/config-schema.json",
+  "name": "gwmb-admin",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "../dist-admin", "not_found_handling": "single-page-application" },
+  "routes": [{ "pattern": "appadmin.girlswhomeanbusiness.org", "custom_domain": true }],
+  "workers_dev": false
+}

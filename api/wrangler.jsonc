@@ -19,7 +19,7 @@
   "vars": {
     "APP_SCHEME": "gwmb",
     "BETTER_AUTH_URL": "https://api.girlswhomeanbusiness.org",
-    "WEB_ORIGINS": "http://localhost:8081",
+    "WEB_ORIGINS": "http://localhost:8081,https://appadmin.girlswhomeanbusiness.org",
     "NOTIFICATION_FROM_EMAIL": "no-reply@notify.girlswhomeanbusiness.org"
   }
   // Secrets (wrangler secret put): BETTER_AUTH_SECRET, SIGNING_SECRET,
