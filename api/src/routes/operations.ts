@@ -1,6 +1,6 @@
-// Account requests, support, error reporting, feature flags, beta testers and the membership approvals console.
+// Account requests, support, error reporting and the membership approvals console.
 // Ports the RLS on these tables and request_account_action / cancel_account_deletion (202610200005),
-// submit_support_request / log_app_error (202610300002), add_beta_tester_by_email, admin_resolve_membership_link
+// submit_support_request / log_app_error (202610300002), admin_resolve_membership_link
 // (202610150001), and the `account-request-process` Edge Function (export bundles and account deletion).
 import { z } from 'zod';
 import { decode, decodeAll } from '../db';
@@ -102,22 +102,6 @@ errors.post('/', optionalUser, async (c) => {
   return c.json({ id: row?.id ?? null }, 201);
 });
 
-// ---------- feature flags (public read) ----------
-
-export const flags = router();
-
-flags.get('/', optionalUser, async (c) => {
-  const userId = c.get('userId');
-  const [rows, beta] = await c.env.DB.batch([
-    c.env.DB.prepare('select key, enabled, beta_only from feature_flags'),
-    c.env.DB.prepare('select active from beta_testers where user_id = ?').bind(userId ?? ''),
-  ]);
-  return c.json({
-    flags: decodeAll('feature_flags', rows.results as Record<string, unknown>[]),
-    isBetaTester: (beta.results[0] as { active?: number } | undefined)?.active === 1,
-  });
-});
-
 // ---------- admin: launch operations ----------
 
 export const adminOperations = router();
@@ -125,29 +109,17 @@ adminOperations.use('*', requireUser, requireAdmin);
 
 adminOperations.get('/', async (c) => {
   const db = c.env.DB;
-  const [accounts, support, errorLogs, auditLogs, flagRows, beta] = await db.batch([
+  const [accounts, support, errorLogs, auditLogs] = await db.batch([
     db.prepare('select * from account_requests order by requested_at desc limit 50'),
     db.prepare('select * from support_requests order by created_at desc limit 50'),
     db.prepare('select * from app_error_logs order by created_at desc limit 50'),
     db.prepare('select * from admin_audit_logs order by created_at desc limit 50'),
-    db.prepare('select * from feature_flags order by label'),
-    db.prepare('select * from beta_testers order by added_at desc'),
   ]);
   const rows = (r: D1Result) => r.results as Record<string, unknown>[];
   return c.json({
     accountRequests: rows(accounts), supportRequests: rows(support), errors: decodeAll('app_error_logs', rows(errorLogs)),
-    audit: decodeAll('admin_audit_logs', rows(auditLogs)), flags: decodeAll('feature_flags', rows(flagRows)), betaTesters: decodeAll('beta_testers', rows(beta)),
+    audit: decodeAll('admin_audit_logs', rows(auditLogs)),
   });
-});
-
-adminOperations.patch('/flags/:key', async (c) => {
-  const input = await body(c, z.object({ enabled: z.boolean(), beta_only: z.boolean() }));
-  const key = c.req.param('key');
-  const row = await c.env.DB.prepare('update feature_flags set enabled = ?, beta_only = ?, updated_by = ?, updated_at = ? where key = ? returning *')
-    .bind(input.enabled ? 1 : 0, input.beta_only ? 1 : 0, c.get('userId'), nowIso(), key).first();
-  if (!row) throw new HttpError(404, 'Unknown feature flag.');
-  await audit(c.env, c.get('userId'), 'update', 'feature_flags', key, input);
-  return c.json(decode('feature_flags', row));
 });
 
 const ACCOUNT_STATUSES = ['submitted', 'in_review', 'completed', 'cancelled'] as const;
@@ -176,22 +148,6 @@ adminOperations.patch('/support-requests/:id', async (c) => {
 adminOperations.post('/errors/:id/resolve', async (c) => {
   await c.env.DB.prepare('update app_error_logs set resolved = 1 where id = ?').bind(c.req.param('id')).run();
   return c.json({ ok: true });
-});
-
-adminOperations.post('/beta-testers', async (c) => {
-  const input = await body(c, z.object({
-    email: z.string().trim().email().max(254),
-    role: z.enum(['app_user', 'member', 'chapter_admin', 'central_admin'], { message: 'Unsupported beta role' }).default('member'),
-    notes: z.string().trim().max(1000).nullish(),
-  }));
-  const user = await c.env.DB.prepare('select id from "user" where lower(email) = lower(?)').bind(input.email).first<{ id: string }>();
-  if (!user) throw new HttpError(404, 'No app account found for this email');
-  await c.env.DB.prepare(
-    `insert into beta_testers (user_id, role, notes, added_by) values (?, ?, ?, ?)
-     on conflict (user_id) do update set role = excluded.role, notes = excluded.notes, active = 1, added_by = excluded.added_by, added_at = ?`,
-  ).bind(user.id, input.role, input.notes || null, c.get('userId'), nowIso()).run();
-  await audit(c.env, c.get('userId'), 'upsert', 'beta_testers', user.id, { role: input.role });
-  return c.json({ user_id: user.id }, 201);
 });
 
 // ---------- admin: membership approvals console ----------

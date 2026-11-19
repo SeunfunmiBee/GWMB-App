@@ -16,7 +16,6 @@ const RULES: Rule[] = [
   { prefix: '/v1/admin/notifications/dispatch' }, // the dispatcher publishes exactly who received what
   { prefix: '/v1/admin/integrations', broadcast: ['content', 'calendar', 'admin'] },
   { prefix: '/v1/admin/notifications', broadcast: ['notifications', 'admin'] },
-  { prefix: '/v1/admin/operations/flags', broadcast: ['flags', 'admin'] },
   { prefix: '/v1/admin/', broadcast: ['notifications', 'admin'] }, // other admin decisions notify the member involved
   { prefix: '/v1/chapters', broadcast: ['calendar', 'notifications'] },
   { prefix: '/v1/events', self: ['calendar', 'notifications'] },

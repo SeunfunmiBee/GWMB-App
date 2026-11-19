@@ -8,16 +8,13 @@ import { useFonts } from 'expo-font';
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
 
 import { colors } from '@/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { NotificationBridge } from '@/components/NotificationBridge';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { OperationalErrorBridge } from '@/components/OperationalErrorBridge';
-import { FeatureAccessGate } from '@/components/FeatureAccessGate';
 import { hasSeenWelcome } from '@/lib/first-launch';
-import { FeatureFlagProvider, type LaunchFeatureKey, useFeatureFlags } from '@/providers/FeatureFlagProvider';
 import { AppStateView } from '@/components/states/AppStateView';
 import { Screen } from '@/components/Screen';
 import { ConnectivityNotice, ConnectivityProvider, useConnectivity } from '@/providers/ConnectivityProvider';
@@ -35,6 +32,7 @@ function AppNavigator() {
 
     const shouldShowWelcome = !user && !hasSeenWelcome() && pathname === '/';
     if (shouldShowWelcome) router.replace('/welcome');
+    else if (!user && needsAccount(pathname)) router.replace('/sign-up');
 
     requestAnimationFrame(() => { void SplashScreen.hideAsync(); });
   }, [loading, pathname, user]);
@@ -58,29 +56,18 @@ function AppNavigator() {
       <Stack.Screen name="events" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="registration/[id]" options={{ animation: 'slide_from_right' }} />
     </Stack>
-    <FeatureGate />
   </>;
 }
 
-const protectedFeatures: { prefix: string; key: LaunchFeatureKey }[] = [
-  { prefix: '/attendance', key: 'attendance_participation' },
-  { prefix: '/application-profile', key: 'application_assistant' },
-  { prefix: '/cliques', key: 'clique_sessions' },
-  { prefix: '/mentorship-application', key: 'one_to_one_mentorship' },
+// Personal screens. Guests who open one (from a card, a link or a notification) are sent to create an account.
+const ACCOUNT_ROUTES = [
+  '/activity', '/application', '/application-profile', '/attendance', '/calendar', '/career-readiness/my', '/career-readiness/review',
+  '/certificate', '/chapter-admin', '/community-location', '/cv/build', '/cv/import', '/cv/my', '/cv/preview', '/cv/review',
+  '/edit-profile', '/goal', '/membership-application', '/mentorship-application', '/mentorship/my', '/mentorship-session', '/notifications',
+  '/privacy-center', '/registration', '/settings', '/support', '/verify-membership',
 ];
-
-// Drawn over the navigator, never instead of it: unmounting the Stack resets it to Home, which hid this gate
-// and bounced people back without explanation. Guests are sent to sign in; signed-in users see why it is closed.
-function FeatureGate() {
-  const pathname = usePathname();
-  const { user } = useAuth();
-  const { loading, access } = useFeatureFlags();
-  const feature = protectedFeatures.find(item => pathname.startsWith(item.prefix));
-  const state = feature ? access(feature.key) : 'allowed';
-  const blocked = !loading && state !== 'allowed';
-  useEffect(() => { if (blocked && !user) router.replace('/sign-in'); }, [blocked, user]);
-  if (!blocked || !user) return null;
-  return <View style={StyleSheet.absoluteFill}><FeatureAccessGate reason={state} /></View>;
+function needsAccount(pathname: string) {
+  return ACCOUNT_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`));
 }
 
 export default function RootLayout() {
@@ -88,7 +75,7 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
   return (
     <AppErrorBoundary><SafeAreaProvider><ConnectivityProvider><OperationalErrorBridge/>
-      <AuthProvider><FeatureFlagProvider><AppNavigator /></FeatureFlagProvider></AuthProvider>
+      <AuthProvider><AppNavigator /></AuthProvider>
       <ConnectivityNotice />
     </ConnectivityProvider></SafeAreaProvider></AppErrorBoundary>
   );

@@ -8,7 +8,7 @@ import { AppState } from 'react-native';
 import { API_URL, apiFetch, authClient } from '@/lib/auth';
 
 /** `admin` is only delivered to app admins; the server ignores it for everyone else. */
-export type LiveTopic = 'content' | 'calendar' | 'marketplace' | 'notifications' | 'flags' | 'admin';
+export type LiveTopic = 'content' | 'calendar' | 'marketplace' | 'notifications' | 'admin';
 
 const SAFETY_REFRESH_MS = 5 * 60_000;
 const PING_MS = 30_000;

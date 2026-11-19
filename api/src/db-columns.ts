@@ -93,15 +93,6 @@ export const COLUMN_KINDS: Record<string, { bool: string[]; json: string[]; time
       "created_at"
     ]
   },
-  "beta_testers": {
-    "bool": [
-      "active"
-    ],
-    "json": [],
-    "time": [
-      "added_at"
-    ]
-  },
   "career_practice_questions": {
     "bool": [
       "active"
@@ -249,16 +240,6 @@ export const COLUMN_KINDS: Record<string, { bool: string[]; json: string[]; time
       "registered_at",
       "updated_at",
       "event_starts_at"
-    ]
-  },
-  "feature_flags": {
-    "bool": [
-      "enabled",
-      "beta_only"
-    ],
-    "json": [],
-    "time": [
-      "updated_at"
     ]
   },
   "google_oauth_states": {

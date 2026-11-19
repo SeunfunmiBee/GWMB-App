@@ -6,7 +6,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { Env } from './env';
 
-export const PUBLIC_TOPICS = ['content', 'calendar', 'marketplace', 'notifications', 'flags'] as const;
+export const PUBLIC_TOPICS = ['content', 'calendar', 'marketplace', 'notifications'] as const;
 /** Only granted to app admins (admin consoles: new requests, applications, errors). */
 export const ADMIN_TOPIC = 'admin';
 export type Topic = (typeof PUBLIC_TOPICS)[number] | typeof ADMIN_TOPIC;

@@ -33,23 +33,6 @@ describe('error reporting (log_app_error)', () => {
   });
 });
 
-describe('feature flags and beta testers', () => {
-  it('serves seeded flags publicly and lets admins change them and add beta testers', async () => {
-    const admin = await createUser({ admin: true });
-    const user = await createUser();
-    const before = await api<{ flags: { key: string; enabled: boolean }[]; isBetaTester: boolean }>(null, 'GET', '/v1/flags');
-    expect(before.body.flags.length).toBeGreaterThan(0);
-    const key = before.body.flags[0].key;
-    expect((await api(user, 'PATCH', `/v1/admin/operations/flags/${key}`, { enabled: true, beta_only: false })).status).toBe(403);
-    const changed = await api<{ enabled: boolean }>(admin, 'PATCH', `/v1/admin/operations/flags/${key}`, { enabled: true, beta_only: false });
-    expect(changed.body.enabled).toBe(true);
-    await api(admin, 'POST', '/v1/admin/operations/beta-testers', { email: user.email, role: 'member' });
-    expect((await api<{ isBetaTester: boolean }>(user, 'GET', '/v1/flags')).body.isBetaTester).toBe(true);
-    const ops = await api<{ audit: { target_type: string }[] }>(admin, 'GET', '/v1/admin/operations');
-    expect(ops.body.audit.some((a) => a.target_type === 'feature_flags')).toBe(true);
-  });
-});
-
 describe('membership approvals console (admin_resolve_membership_link)', () => {
   it('adds official records, rejects duplicates, and approves matched requests', async () => {
     const admin = await createUser({ admin: true });
@@ -82,14 +65,14 @@ describe('admin realtime topic', () => {
     const [admin, user] = [await createUser({ admin: true }), await createUser()];
     const ready = async (who: typeof admin) => {
       const { ticket } = (await api<{ ticket: string }>(who, 'POST', '/v1/live/ticket')).body;
-      const res = await SELF.fetch(`${BASE}/v1/live?topics=admin,flags&ticket=${encodeURIComponent(ticket)}`, { headers: { Upgrade: 'websocket' } });
+      const res = await SELF.fetch(`${BASE}/v1/live?topics=admin,content&ticket=${encodeURIComponent(ticket)}`, { headers: { Upgrade: 'websocket' } });
       const ws = res.webSocket!;
       ws.accept();
       const first = await new Promise<{ topics: string[] }>((resolve) => ws.addEventListener('message', (e) => resolve(JSON.parse(String(e.data))), { once: true }));
       ws.close();
       return first.topics;
     };
-    expect(await ready(admin)).toEqual(['admin', 'flags', `user:${admin.id}`]);
-    expect(await ready(user)).toEqual(['flags', `user:${user.id}`]);
+    expect(await ready(admin)).toEqual(['admin', 'content', `user:${admin.id}`]);
+    expect(await ready(user)).toEqual(['content', `user:${user.id}`]);
   });
 });

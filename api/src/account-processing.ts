@@ -48,7 +48,6 @@ const OWNED_TABLES: [key: string, table: string, column: string][] = [
   ['support_requests', 'support_requests', 'user_id'],
   ['app_error_logs', 'app_error_logs', 'user_id'],
   ['user_action_rate_limits', 'user_action_rate_limits', 'actor_user_id'],
-  ['beta_testers', 'beta_testers', 'user_id'],
   ['app_admins', 'app_admins', 'user_id'],
   ['chapter_admins', 'chapter_admins', 'user_id'],
   ['account_requests', 'account_requests', 'user_id'],
