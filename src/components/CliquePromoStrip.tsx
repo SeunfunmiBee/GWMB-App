@@ -23,7 +23,7 @@ export function CliquePromoStrip({ category }: { category: CliqueCategory }) {
   if(!items.length)return null;
 
   async function handlePress(cliqueId:string){
-    if(!user){router.push('/sign-in');return;}
+    if(!user){router.push('/sign-up');return;}
     if(!member){router.push('/membership');return;}
     if(joined.includes(cliqueId)){router.push('/cliques');return;}
     setJoining(cliqueId);

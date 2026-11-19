@@ -62,7 +62,7 @@ error:null
   const accessLabel=session.access_level==='members'?'Members Only':'Open Access';
 
   async function saveSeat(){
-    if(!user){router.push('/sign-in');return}
+    if(!user){router.push('/sign-up');return}
     if(locked){router.push(linkedButUnverified?'/verify-membership':'/membership');return}
     setBusy(true);
     const result=await registerForMentorshipSession(user.id,session!.id,isFull?'waitlisted':'registered');

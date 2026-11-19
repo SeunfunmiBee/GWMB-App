@@ -97,7 +97,7 @@ export default function MemberWinsScreen() {
           <Text style={styles.storyCopy}>Landing a paid internship is more than a new line on a CV. It is a chance to learn in a real workplace, build confidence and turn potential into experience.</Text>
           <Text style={styles.storyCopy}>Today, we are celebrating Matilda and the exciting chapter ahead of her.</Text>
           <View style={styles.pullQuote}>
-            <View style={styles.quoteMark}><Ionicons name="sparkles" size={18} color="white" /></View>
+            <View style={styles.quoteMark}><Ionicons name="chatbubble-ellipses" size={18} color="white" /></View>
             <Text style={styles.pullQuoteText}>One woman’s win can show another woman what is possible.</Text>
           </View>
         </View>

@@ -32,7 +32,7 @@ export default function EditProfile() {
 
   async function save() {
     setMessage(null);
-    if (!user) { router.replace('/sign-in'); return; }
+    if (!user) { router.replace('/sign-up'); return; }
     if (name.trim().length < 2) { setMessage('Enter your full name.'); return; }
     setSaving(true);
     try {

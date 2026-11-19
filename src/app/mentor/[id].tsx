@@ -83,7 +83,7 @@ export default function MentorDetail(){
     <View style={styles.aboutCard}><Text style={styles.aboutQuote}>“</Text><Text style={styles.copy}>{mentor.bio}</Text></View>
 
     <View style={styles.sectionHead}><View><Text style={styles.kicker}>CAREER EXPERTISE</Text><Text style={styles.sectionTitle}>What {firstName} knows well</Text></View></View>
-    <View style={styles.expertiseGrid}>{mentor.expertise.map((item,index)=><View key={item} style={[styles.expertiseCard,index===0&&styles.expertiseCardFeatured]}><View style={[styles.expertiseIcon,index===0&&styles.expertiseIconFeatured]}><Ionicons name={index===0?'sparkles':'checkmark'} size={15} color={index===0?'white':colors.pinkDeep}/></View><Text style={[styles.expertiseText,index===0&&styles.expertiseTextFeatured]}>{item}</Text></View>)}</View>
+    <View style={styles.expertiseGrid}>{mentor.expertise.map((item,index)=><View key={item} style={[styles.expertiseCard,index===0&&styles.expertiseCardFeatured]}><View style={[styles.expertiseIcon,index===0&&styles.expertiseIconFeatured]}><Ionicons name="checkmark" size={15} color={index===0?'white':colors.pinkDeep}/></View><Text style={[styles.expertiseText,index===0&&styles.expertiseTextFeatured]}>{item}</Text></View>)}</View>
 
     <View style={styles.sectionHead}><View><Text style={styles.kicker}>GUIDANCE AREAS</Text><Text style={styles.sectionTitle}>What you can explore together</Text></View></View>
     <View style={styles.focusList}>{mentor.guidance_topics.map((item,index)=><View key={item} style={styles.focusItem}><Text style={styles.focusNumber}>0{index+1}</Text><Text style={styles.focusText}>{item}</Text><Ionicons name="arrow-forward" size={17} color={colors.ink}/></View>)}</View>

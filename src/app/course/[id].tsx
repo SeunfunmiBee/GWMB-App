@@ -58,7 +58,7 @@ export default function CourseDetail(){
   const completed=new Set(progress?.completed_lesson_ids??[]);
   const firstIncomplete=course.lessons.findIndex(item=>!completed.has(item.id));
   const accessLocked=course.access==='MEMBERS ONLY'&&membership?.status!=='verified';
-  const membershipRoute=!user?'/sign-in':membership?'/verify-membership':'/membership';
+  const membershipRoute=!user?'/sign-up':membership?'/verify-membership':'/membership';
   const membershipLabel=!user?'Sign in to continue':membership?'Verify Membership':'Explore Membership';
   const deeperIndex=Math.max(2,Math.ceil(course.lessons.length/2));
   const learningOutcomes=Array.from(new Set(course.lessons.flatMap(lesson=>lesson.objectives))).slice(0,4);
@@ -66,8 +66,8 @@ export default function CourseDetail(){
 
   async function openResource(value:string){const result=await resolveContentFileUrl(value);if(result.error||!result.url){Alert.alert('Resource unavailable','Verify your membership and try again.');return}await WebBrowser.openBrowserAsync(result.url)}
 
-  function openLesson(index:number){if(!user){router.push('/sign-in');return;}if(accessLocked){router.push(membershipRoute);return;}const unlocked=index===0||completed.has(course.lessons[index].id)||completed.has(course.lessons[index-1].id);if(unlocked)router.push(`/course/${course.id}/lesson/${course.lessons[index].id}${previewId?`?previewId=${previewId}`:''}`);}
-  async function primaryAction(){if(!user){router.push('/sign-in');return;}if(accessLocked){router.push(membershipRoute);return;}if(percent===100){if(offersCertificate)router.push(`/certificate/${course.id}`);return;}setStarting(true);const next=await startCourse(user.id,course.id,course.lessons[0].id);setProgress(next);setStarting(false);router.push(`/course/${course.id}/lesson/${next.current_lesson_id??course.lessons[0].id}${previewId?`?previewId=${previewId}`:''}`);}
+  function openLesson(index:number){if(!user){router.push('/sign-up');return;}if(accessLocked){router.push(membershipRoute);return;}const unlocked=index===0||completed.has(course.lessons[index].id)||completed.has(course.lessons[index-1].id);if(unlocked)router.push(`/course/${course.id}/lesson/${course.lessons[index].id}${previewId?`?previewId=${previewId}`:''}`);}
+  async function primaryAction(){if(!user){router.push('/sign-up');return;}if(accessLocked){router.push(membershipRoute);return;}if(percent===100){if(offersCertificate)router.push(`/certificate/${course.id}`);return;}setStarting(true);const next=await startCourse(user.id,course.id,course.lessons[0].id);setProgress(next);setStarting(false);router.push(`/course/${course.id}/lesson/${next.current_lesson_id??course.lessons[0].id}${previewId?`?previewId=${previewId}`:''}`);}
   const primaryLabel=!user?'Sign in to unlock':accessLocked?membershipLabel:percent===100?(offersCertificate?'View certificate':'Course complete'):progress?'Continue learning':'Start course';
 
   return <Screen>
@@ -80,7 +80,7 @@ export default function CourseDetail(){
       <View style={styles.heroTrack}><View style={[styles.heroProgress,{width:`${percent}%`}]} /></View><View style={styles.orb}/>
     </View>
     <Text style={styles.title}>{course.promise}</Text>
-    {accessLocked?<Pressable onPress={()=>router.push(!user?'/sign-in':'/membership')} style={styles.accessGate}><View style={styles.accessGateIcon}><Ionicons name="lock-closed" size={22} color={colors.pinkDeep}/></View><View style={styles.accessGateCopy}><Text style={styles.accessGateKicker}>MEMBERS ONLY</Text><Text style={styles.accessGateTitle}>{user?'Verify your membership to unlock this course':'Sign in or create an account to continue'}</Text></View><Ionicons name="arrow-forward" size={20} color={colors.ink}/></Pressable>:null}
+    {accessLocked?<Pressable onPress={()=>router.push(!user?'/sign-up':'/membership')} style={styles.accessGate}><View style={styles.accessGateIcon}><Ionicons name="lock-closed" size={22} color={colors.pinkDeep}/></View><View style={styles.accessGateCopy}><Text style={styles.accessGateKicker}>MEMBERS ONLY</Text><Text style={styles.accessGateTitle}>{user?'Verify your membership to unlock this course':'Sign in or create an account to continue'}</Text></View><Ionicons name="arrow-forward" size={20} color={colors.ink}/></Pressable>:null}
     <View style={styles.stats}>{[[`${course.lessons.length}`,'LESSONS'],[course.duration,'DURATION'],[course.rating,'RATING'],[offersCertificate?'Yes':'No','CERTIFICATE']].map(([value,label])=><View key={label} style={styles.stat}><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>)}</View>
     <View style={styles.tabs}>{(['Overview','Lessons','Resources'] as const).map(item=><Pressable key={item} onPress={()=>setTab(item)} style={[styles.tab,tab===item&&styles.tabActive]}><Text style={[styles.tabText,tab===item&&styles.tabTextActive]}>{item}</Text></Pressable>)}</View>
 

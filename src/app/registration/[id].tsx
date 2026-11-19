@@ -63,7 +63,7 @@ cloud: true
   async function submit() {
     setMessage(null);
     if (!event || !registrationId) { setMessage('This event is no longer available.'); return; }
-    if (!user) { router.replace('/sign-in'); return; }
+    if (!user) { router.replace('/sign-up'); return; }
     if (event.access === 'Members Only' && membership?.status !== 'verified') { router.replace('/membership'); return; }
     if (name.trim().length < 2) { setMessage('Enter your full name.'); return; }
     if (!email.includes('@')) { setMessage('Enter a valid email address.'); return; }

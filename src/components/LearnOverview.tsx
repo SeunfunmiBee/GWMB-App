@@ -315,7 +315,7 @@ export function LearnOverview() {
 
   return <Screen contentContainerStyle={styles.screenContent}>
     {pathname !== '/learn' ? <PageHeader title="Learn" eyebrow="Learning & Skills" /> : null}
-    {pathname === '/learn' ? <DestinationHeader compact eyebrow="GWMB LEARN" title="Build skills for your next move." copy="Certificate courses, career readiness, live sessions, templates and resources." colors={['#8F174B','#E35491','#9B72E8','#3150E8']}/> : null}
+    {pathname === '/learn' ? <DestinationHeader compact eyebrow="GWMB LEARN" title="Build skills for your next move." copy="Certificate courses, career readiness, live sessions, templates and resources."/> : null}
     <View style={styles.search}>
       <TextInput value={query} onChangeText={setQuery} placeholder="Search courses, sessions and resources" placeholderTextColor="#746F72" style={styles.searchInput} />
       <View pointerEvents="none" style={styles.searchLeading}><Ionicons name="search-outline" size={21} color={colors.muted} /></View>

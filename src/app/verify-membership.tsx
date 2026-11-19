@@ -47,7 +47,7 @@ export default function VerifyMembership(){
   },[loading,request,refreshAccount,user]);
 
   async function submit(){
-    setMessage(null);if(!user){router.replace('/sign-in');return;}
+    setMessage(null);if(!user){router.replace('/sign-up');return;}
     const nextErrors={email:validators.email(email),memberId:validators.min(memberId,4,'GWMB Member ID'),chapter:validators.required(chapter,'Chapter')};setErrors(Object.fromEntries(Object.entries(nextErrors).filter(([,value])=>value)) as typeof errors);if(Object.values(nextErrors).some(Boolean)){setMessage('Check the highlighted details and try again.');return;}
     setSubmitting(true);
     try{

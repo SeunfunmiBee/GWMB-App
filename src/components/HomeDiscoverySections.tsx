@@ -9,6 +9,7 @@ import { growCategoryColors } from '@/data/grow';
 import { tapFeedback } from '@/lib/feedback';
 import { usePublishedContent } from '@/lib/content-runtime';
 import type { ContentItem } from '@/lib/admin-content';
+import { contentIcon } from '@/lib/ui-icons';
 import { colors, fonts } from '@/theme';
 
 const defaultBenefits = [
@@ -40,7 +41,7 @@ const meta=(item:ContentItem|undefined,key:string,fallback:string)=>typeof item?
 export function HomeDiscoverySections({ isMember = false }: { isMember?: boolean }) {
   const { width } = useWindowDimensions();
   const home=usePublishedContent('home'); const winItems=usePublishedContent('member-wins');
-  const benefits=home.filter(item=>item.content_type==='benefit_card'&&item.visible).map((item,index)=>({label:item.title,icon:meta(item,'icon',defaultBenefits[index]?.icon||'sparkles-outline') as typeof defaultBenefits[number]['icon'],promise:item.summary||'',tone:meta(item,'color',defaultBenefits[index]?.tone||colors.pinkDeep),route:item.route||'/membership',dark:item.metadata.dark!==false}));
+  const benefits=home.filter(item=>item.content_type==='benefit_card'&&item.visible).map((item,index)=>({label:item.title,icon:contentIcon(meta(item,'icon',defaultBenefits[index]?.icon||'people-outline'), item.slug==='leadership'?'people-outline':defaultBenefits[index]?.icon||'people-outline') as typeof defaultBenefits[number]['icon'],promise:item.summary||'',tone:meta(item,'color',defaultBenefits[index]?.tone||colors.pinkDeep),route:item.route||'/membership',dark:item.metadata.dark!==false}));
   const resolvedBenefits=benefits.length?benefits:defaultBenefits;
   const displayedBenefits=isMember?resolvedBenefits.slice(0,4):resolvedBenefits;
   const publishedWins=winItems.filter(item=>item.visible);
@@ -91,7 +92,7 @@ export function HomeDiscoverySections({ isMember = false }: { isMember?: boolean
       <View style={styles.sectionHead}><View><Text style={styles.kicker}>{spotlight?.eyebrow||'SPOTLIGHT'}</Text><Text style={styles.sectionTitle}>{spotlight?.title||'GWMB Girls Making Moves'}</Text></View><Pressable onPress={() => open(spotlight?.route||'/member-wins')}><Text style={styles.link}>{meta(spotlight,'link','See all wins')}</Text></Pressable></View>
       <ScrollView ref={spotlightRef} horizontal decelerationRate="fast" snapToInterval={spotlightWidth + 12} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.spotlightTrack} onScrollBeginDrag={() => { spotlightPausedUntil.current = Date.now() + 9000; }} onMomentumScrollEnd={(event) => { spotlightPosition.current = Math.round(event.nativeEvent.contentOffset.x / (spotlightWidth + 12)); }}>
         {resolvedWins.map((win, index) => <SpringPressable key={`${win.category}-${index}`} onPress={() => open(spotlight?.route||'/member-wins')} style={[styles.spotlightCard, { width: spotlightWidth }]} contentStyle={styles.spotlightContent}>
-          <View style={styles.spotlightMedia}><Image source={win.image} resizeMode="cover" style={styles.spotlightImage}/><View style={styles.spotlightShade}/><View style={styles.spotlightTop}><View style={styles.spotlightBadge}><Ionicons name="star" size={11} color={colors.pinkDeep}/><Text style={styles.spotlightBadgeText}>{win.category}</Text></View><Text style={styles.spotlightIssue}>0{index + 1}</Text></View></View>
+          <View style={styles.spotlightMedia}><Image source={win.image} resizeMode="cover" style={styles.spotlightImage}/><View style={styles.spotlightShade}/><View style={styles.spotlightTop}><View style={styles.spotlightBadge}><Text style={styles.spotlightBadgeText}>{win.category}</Text></View><Text style={styles.spotlightIssue}>0{index + 1}</Text></View></View>
           <View style={styles.spotlightBottom}><Text style={styles.spotlightTitle}>{win.title}</Text><Text numberOfLines={2} style={styles.spotlightCopy}>{win.copy}</Text><View style={styles.spotlightArrow}><Ionicons name="arrow-forward" size={20} color="white"/></View></View>
         </SpringPressable>)}
       </ScrollView>
