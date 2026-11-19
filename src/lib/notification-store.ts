@@ -64,10 +64,11 @@ export async function updateNotificationPreferences(userId:string,patch:Partial<
 export async function registerPushDevice(userId:string,requestPermission=true){
   if(Platform.OS==='web')return{enabled:false,reason:'Push notifications are available in the Android app.'};
   if(!Device.isDevice)return{enabled:false,reason:'Use a physical device to enable push notifications.'};
+  // Android 13+ shows the permission prompt only once a channel exists.
+  if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('gwmb-reminders',{name:'GWMB reminders',importance:Notifications.AndroidImportance.HIGH,vibrationPattern:[0,200,120,200],lightColor:'#E62B7F'});
   const current=await Notifications.getPermissionsAsync();
   const permission=current.granted||!requestPermission?current:await Notifications.requestPermissionsAsync();
   if(!permission.granted)return{enabled:false,reason:'Notification permission was not granted.'};
-  if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('gwmb-reminders',{name:'GWMB reminders',importance:Notifications.AndroidImportance.HIGH,vibrationPattern:[0,200,120,200],lightColor:'#E62B7F'});
   const projectId=Constants.expoConfig?.extra?.eas?.projectId??Constants.easConfig?.projectId;
   if(!projectId)return{enabled:false,reason:'The notification project ID is unavailable.'};
   const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;

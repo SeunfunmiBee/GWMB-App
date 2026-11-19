@@ -62,4 +62,30 @@ describe('admin broadcasts (queue_admin_notification)', () => {
     const overview = await api<{ counts: Record<string, number> }>(admin, 'GET', '/v1/admin/notifications/overview');
     expect(overview.body.counts.pending).toBeGreaterThanOrEqual(rows.results.length);
   });
+
+  it('sends to named people only and reports emails without an account', async () => {
+    const admin = await createUser({ admin: true });
+    const [picked, other] = [await createUser(), await createUser()];
+    const res = await api<{ queued: number; missing: string[] }>(admin, 'POST', '/v1/admin/notifications/broadcast', {
+      title: `Personal ${crypto.randomUUID()}`, body: 'Just for you', audience: 'people', channels: ['in_app'],
+      emails: [picked.email.toUpperCase(), 'nobody@example.com'], scheduled_for: '2030-01-01T09:00:00Z',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ queued: 1, missing: ['nobody@example.com'] });
+    const owners = await env.DB.prepare("select user_id from notification_outbox where json_extract(payload, '$.body') = 'Just for you'").all<{ user_id: string }>();
+    expect(owners.results.map((r) => r.user_id)).toContain(picked.id);
+    expect(owners.results.map((r) => r.user_id)).not.toContain(other.id);
+    expect((await api(admin, 'POST', '/v1/admin/notifications/broadcast', { title: 'x', body: 'y', audience: 'people', channels: ['in_app'], emails: ['nobody@example.com'] })).status).toBe(400);
+  });
+
+  it('delivers a test straight to the admin and lists it in the history', async () => {
+    const admin = await createUser({ admin: true });
+    const title = `Test ${crypto.randomUUID()}`;
+    const res = await api<{ queued: number }>(admin, 'POST', '/v1/admin/notifications/broadcast', { title, body: 'Preview', audience: 'everyone', channels: ['in_app'], test: true });
+    expect(res.body.queued).toBe(1);
+    const inbox = await api<{ title: string }[]>(admin, 'GET', '/v1/notifications');
+    expect(inbox.body.map((n) => n.title)).toContain(title);
+    const history = await api<{ title: string; test: boolean; channels: Record<string, Record<string, number>> }[]>(admin, 'GET', '/v1/admin/notifications/history');
+    expect(history.body.find((b) => b.title === title)).toMatchObject({ test: true, channels: { in_app: { sent: 1 } } });
+  });
 });

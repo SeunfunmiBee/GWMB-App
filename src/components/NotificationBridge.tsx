@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { loadNotificationPreferences, registerPushDevice } from '@/lib/notification-store';
 import { logAppError } from '@/lib/launch-operations';
@@ -10,7 +11,11 @@ Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowBa
 
 export function NotificationBridge(){
   const{user}=useAuth();
-  useEffect(()=>{if(!user)return;loadNotificationPreferences(user.id).then(({preferences})=>{if(preferences.push_enabled)void registerPushDevice(user.id,false)})},[user]);
+  // Push is how admin messages reach a closed app: ask once after sign-in. Someone who turned push off in Settings already
+  // answered the system prompt, so they are not asked again.
+  useEffect(()=>{if(!user||Platform.OS==='web')return;void Promise.all([loadNotificationPreferences(user.id),Notifications.getPermissionsAsync()]).then(([{preferences},permission])=>{
+    if(preferences.push_enabled||permission.status==='undetermined')return registerPushDevice(user.id,!preferences.push_enabled);
+  }).catch(error=>logAppError('push-register',error))},[user]);
   useEffect(()=>{
     let active=true;
     const openResponse=async(response:Notifications.NotificationResponse|null)=>{

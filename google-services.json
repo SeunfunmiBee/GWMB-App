@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "968732392785",
+    "project_id": "gwmb-86d79",
+    "storage_bucket": "gwmb-86d79.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:968732392785:android:14112e2ce8dd20cee6a770",
+        "android_client_info": {
+          "package_name": "org.girlswhomeanbusiness.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlgO65zIkbWBZFt80cZmS6awdrJ0C9ixA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

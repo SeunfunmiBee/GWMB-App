@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "org.girlswhomeanbusiness.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#A81455",
         "foregroundImage": "./assets/branding/gwmb-mark-transparent.png"

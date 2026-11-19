@@ -4,7 +4,7 @@
 import { z } from 'zod';
 import { decode, decodeAll, encode, isoTime } from '../db';
 import { dispatchNotifications } from '../dispatch';
-import { audit, body, nowIso, requireAdmin, requireUser, router } from '../http';
+import { audit, body, HttpError, nowIso, requireAdmin, requireUser, router } from '../http';
 
 export const notifications = router();
 notifications.use('*', requireUser);
@@ -89,33 +89,78 @@ adminNotifications.get('/overview', async (c) => {
   return c.json({ counts, tasks: decodeAll('mentorship_operations_tasks', tasks.results as Record<string, unknown>[]) });
 });
 
+const CHANNELS = ['in_app', 'push', 'email'] as const; // SMS and WhatsApp join once their providers are connected.
+const BATCH_PREFIX = 'admin-broadcast:';
+
 const broadcastInput = z.object({
   title: z.string().trim().min(1, 'Title and message are required').max(200),
   body: z.string().trim().min(1, 'Title and message are required').max(2000),
-  route: z.string().trim().max(500).nullish(),
+  route: z.string().trim().max(500).refine((r) => !r || (r.startsWith('/') && !r.startsWith('//')), 'The app destination must start with /').nullish(),
   scheduled_for: z.string().nullish(),
-  audience: z.enum(['everyone', 'members', 'app-users']),
-  channels: z.array(z.enum(['in_app', 'push', 'email', 'sms', 'whatsapp'])).min(1, 'Choose at least one channel').max(5),
-});
+  audience: z.enum(['everyone', 'members', 'app-users', 'people']),
+  emails: z.array(z.string().trim().toLowerCase().email('Check the email addresses')).max(500).optional(),
+  channels: z.array(z.enum(CHANNELS)).min(1, 'Choose at least one channel').max(3),
+  test: z.boolean().optional(),
+}).refine((i) => i.audience !== 'people' || i.test || i.emails?.length, 'Add at least one email address');
 
 /** "Send now": the same run the Cron Trigger performs every minute. */
 adminNotifications.post('/dispatch', async (c) => c.json(await dispatchNotifications(c.env)));
 
 adminNotifications.post('/broadcast', async (c) => {
   const input = await body(c, broadcastInput);
-  const scheduledFor = input.scheduled_for ? isoTime(input.scheduled_for, 'scheduled time') : nowIso();
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${input.title}${input.body}${scheduledFor}`));
+  const adminId = c.get('userId');
+  const emails = [...new Set(input.emails ?? [])];
+  // A test goes only to the admin sending it, right away, and can be repeated.
+  const audience = input.test ? 'test' : input.audience;
+  const scheduledFor = input.test || !input.scheduled_for ? nowIso() : isoTime(input.scheduled_for, 'scheduled time');
+  const seed = input.test ? crypto.randomUUID() : `${input.title}${input.body}${scheduledFor}${audience}${emails.join(',')}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
   const batchKey = [...new Uint8Array(digest)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+  let missing: string[] = [];
+  if (audience === 'people') {
+    const { results } = await c.env.DB.prepare('select lower(email) as email from "user" where lower(email) in (select value from json_each(?))').bind(JSON.stringify(emails)).all<{ email: string }>();
+    const found = new Set(results.map((r) => r.email));
+    missing = emails.filter((e) => !found.has(e));
+    if (!found.size) throw new HttpError(400, 'None of those emails belong to an app account.');
+  }
+
   // One outbox row per recipient and channel; the dedupe key makes repeating the same broadcast a no-op.
   const result = await c.env.DB.prepare(
     `insert into notification_outbox (user_id, channel, template_key, payload, scheduled_for, dedupe_key)
-     select u.id, ch.value, 'admin_broadcast', json_object('title', ?1, 'body', ?2, 'route', coalesce(?3, '/notifications')), ?4,
-       'admin-broadcast:' || ?5 || ':' || u.id || ':' || ch.value
+     select u.id, ch.value, 'admin_broadcast', json_object('title', ?1, 'body', ?2, 'route', coalesce(?3, '/notifications'), 'audience', ?7, 'test', ?10), ?4,
+       '${BATCH_PREFIX}' || ?5 || ':' || u.id || ':' || ch.value
      from "user" u join json_each(?6) ch left join memberships m on m.user_id = u.id
      where ?7 = 'everyone' or (?7 = 'members' and m.status = 'verified') or (?7 = 'app-users' and coalesce(m.status, 'non_member') <> 'verified')
+       or (?7 = 'people' and lower(u.email) in (select value from json_each(?8))) or (?7 = 'test' and u.id = ?9)
      on conflict (dedupe_key) where dedupe_key is not null do nothing`,
-  ).bind(input.title, input.body, input.route || null, scheduledFor, batchKey, JSON.stringify([...new Set(input.channels)]), input.audience).run();
+  ).bind(input.title, input.body, input.route || null, scheduledFor, batchKey, JSON.stringify([...new Set(input.channels)]), audience, JSON.stringify(emails), adminId, input.test ? 1 : 0).run();
   const queued = result.meta.changes ?? 0;
-  await audit(c.env, c.get('userId'), 'broadcast', 'notification_outbox', batchKey, { audience: input.audience, channels: input.channels, queued });
-  return c.json({ queued });
+  await audit(c.env, adminId, input.test ? 'broadcast_test' : 'broadcast', 'notification_outbox', batchKey, { audience, channels: input.channels, queued, recipients: emails.length || undefined });
+  if (input.test) return c.json({ queued, missing, dispatch: await dispatchNotifications(c.env) });
+  return c.json({ queued, missing });
+});
+
+type HistoryRow = { batch: string; title: string; body: string; audience: string | null; test: number | null; scheduled_for: string; channel: string; status: string; n: number; error: string | null };
+export type BroadcastSummary = { id: string; title: string; body: string; audience: string; test: boolean; scheduled_for: string; channels: Record<string, Record<string, number>>; error: string | null };
+
+/** Recent broadcasts with delivery counts per channel and status. */
+adminNotifications.get('/history', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `select substr(dedupe_key, ${BATCH_PREFIX.length + 1}, 32) as batch, min(json_extract(payload, '$.title')) as title, min(json_extract(payload, '$.body')) as body,
+       min(json_extract(payload, '$.audience')) as audience, max(json_extract(payload, '$.test')) as test, min(scheduled_for) as scheduled_for,
+       channel, status, count(*) as n, max(error_message) as error
+     from notification_outbox where template_key = 'admin_broadcast' and dedupe_key like '${BATCH_PREFIX}%'
+       and batch in (select substr(dedupe_key, ${BATCH_PREFIX.length + 1}, 32) from notification_outbox where template_key = 'admin_broadcast' and dedupe_key like '${BATCH_PREFIX}%'
+         group by 1 order by max(created_at) desc limit 25)
+     group by batch, channel, status order by scheduled_for desc`,
+  ).all<HistoryRow>();
+  const batches = new Map<string, BroadcastSummary>();
+  for (const r of results) {
+    const entry = batches.get(r.batch) ?? { id: r.batch, title: r.title, body: r.body, audience: r.audience ?? 'everyone', test: Boolean(r.test), scheduled_for: r.scheduled_for, channels: {}, error: null };
+    entry.channels[r.channel] = { ...entry.channels[r.channel], [r.status]: r.n };
+    if (r.status === 'failed' && r.error) entry.error = r.error;
+    batches.set(r.batch, entry);
+  }
+  return c.json([...batches.values()]);
 });
