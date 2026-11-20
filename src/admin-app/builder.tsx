@@ -37,6 +37,7 @@ import {
   type ContentStatus,
   type ContentUploadController,
 } from "@/lib/admin-content";
+import { courses as staticCourses } from "@/data/courses";
 import { colors, fonts } from "@/theme";
 
 type Lesson = {
@@ -70,6 +71,38 @@ type AdvancedProgramMeta = {
   members_only_offer: boolean;
   completion_required: boolean;
 };
+// Seeded courses store only a lesson *count* in metadata.lessons and keep the real lessons in
+// src/data/courses.ts (the app falls back to those too). Start the editor from the same fallback,
+// and coerce list fields to arrays so a malformed record can be opened and fixed instead of crashing.
+const asList = <T,>(value: unknown, fallback: T[]): T[] => (Array.isArray(value) ? (value as T[]) : fallback);
+function editableMeta(item: { area: string; slug: string; metadata?: unknown }): BuilderMeta {
+  const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as BuilderMeta;
+  const listsFixed: BuilderMeta = { ...meta, surfaces: asList(meta.surfaces, []), reminders: asList(meta.reminders, []), notification_channels: asList(meta.notification_channels, []) };
+  if (item.area !== "courses") return listsFixed;
+  const course = staticCourses[item.slug];
+  const lessons: Lesson[] = (course?.lessons ?? []).map((lesson) => ({
+    id: lesson.id,
+    title: lesson.title,
+    summary: lesson.summary,
+    duration: lesson.duration,
+    media_type: lesson.mediaType ?? "none",
+    media_url: lesson.mediaUrl ?? "",
+    preview: lesson.preview ?? false,
+    objectives: lesson.objectives,
+    sections: lesson.sections,
+    reflection: lesson.reflection,
+  }));
+  return {
+    ...listsFixed,
+    lessons: asList(meta.lessons, lessons),
+    resources: asList(meta.resources, course?.resources ?? []),
+    duration: meta.duration ?? course?.duration,
+    category: meta.category ?? course?.category,
+    subcategory: meta.subcategory ?? course?.subcategory,
+    instructor: meta.instructor ?? (course?.instructor ? { name: course.instructor.name, role: course.instructor.role, bio: course.instructor.bio, image_url: course.instructor.imageUrl ?? "" } : undefined),
+  };
+}
+
 type BuilderMeta = {
   provider?: string;
   category?: string;
@@ -365,7 +398,7 @@ export default function EducationBuilder() {
         if (error) Alert.alert("Could not load item", error.message);
         if (data) {
           setDraft(data);
-          setMeta(data.metadata as BuilderMeta);
+          setMeta(editableMeta(data));
           if (type === "course") {
             const offerResult = await loadAdminAdvancedOffer(data.id);
             if (offerResult.offer) setSecureOffer(offerResult.offer);
@@ -479,7 +512,7 @@ export default function EducationBuilder() {
     if (result.error) Alert.alert("Could not save", result.error.message);
     else if (type === "course" && result.data) {
       setDraft(result.data as ContentDraft);
-      setMeta((result.data.metadata ?? meta) as BuilderMeta);
+      setMeta(result.data.metadata ? editableMeta(result.data) : meta);
       Alert.alert(
         "Course saved",
         "The course and its advanced partner pathway are ready to preview. Published courses appear in Learn automatically.",
