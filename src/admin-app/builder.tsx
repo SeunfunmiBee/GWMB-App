@@ -1,6 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import {
+  CourseBuilderNav,
+  type CourseBuilderSection,
+} from "@/components/admin/CourseBuilderNav";
 import {
   ActivityIndicator,
   Alert,
@@ -37,310 +47,19 @@ import {
   type ContentStatus,
   type ContentUploadController,
 } from "@/lib/admin-content";
-import { courses as staticCourses } from "@/data/courses";
+import {
+  areaByType,
+  blank,
+  editableMeta,
+  labels,
+  programs,
+  publicationIssues,
+  slugify,
+  type AdvancedProgramMeta,
+  type BuilderMeta,
+  type Lesson,
+} from "@/lib/education-builder";
 import { colors, fonts } from "@/theme";
-
-type Lesson = {
-  id: string;
-  title: string;
-  summary: string;
-  duration: string;
-  media_type: string;
-  media_url: string;
-  preview: boolean;
-  objectives: string[];
-  sections: { heading: string; body: string }[];
-  reflection: string;
-};
-type AdvancedProgramMeta = {
-  enabled: boolean;
-  title: string;
-  partner: string;
-  summary: string;
-  duration: string;
-  format: string;
-  certificate: string;
-  programme_url: string;
-  application_url: string;
-  deadline: string;
-  intake: string;
-  standard_price: string;
-  status: string;
-  offer_type: string;
-  offer_label: string;
-  members_only_offer: boolean;
-  completion_required: boolean;
-};
-// Seeded courses store only a lesson *count* in metadata.lessons and keep the real lessons in
-// src/data/courses.ts (the app falls back to those too). Start the editor from the same fallback,
-// and coerce list fields to arrays so a malformed record can be opened and fixed instead of crashing.
-const asList = <T,>(value: unknown, fallback: T[]): T[] => (Array.isArray(value) ? (value as T[]) : fallback);
-function editableMeta(item: { area: string; slug: string; metadata?: unknown }): BuilderMeta {
-  const meta = (item.metadata && typeof item.metadata === "object" ? item.metadata : {}) as BuilderMeta;
-  const listsFixed: BuilderMeta = { ...meta, surfaces: asList(meta.surfaces, []), reminders: asList(meta.reminders, []), notification_channels: asList(meta.notification_channels, []) };
-  if (item.area !== "courses") return listsFixed;
-  const course = staticCourses[item.slug];
-  const lessons: Lesson[] = (course?.lessons ?? []).map((lesson) => ({
-    id: lesson.id,
-    title: lesson.title,
-    summary: lesson.summary,
-    duration: lesson.duration,
-    media_type: lesson.mediaType ?? "none",
-    media_url: lesson.mediaUrl ?? "",
-    preview: lesson.preview ?? false,
-    objectives: lesson.objectives,
-    sections: lesson.sections,
-    reflection: lesson.reflection,
-  }));
-  return {
-    ...listsFixed,
-    lessons: asList(meta.lessons, lessons),
-    resources: asList(meta.resources, course?.resources ?? []),
-    duration: meta.duration ?? course?.duration,
-    category: meta.category ?? course?.category,
-    subcategory: meta.subcategory ?? course?.subcategory,
-    instructor: meta.instructor ?? (course?.instructor ? { name: course.instructor.name, role: course.instructor.role, bio: course.instructor.bio, image_url: course.instructor.imageUrl ?? "" } : undefined),
-  };
-}
-
-type BuilderMeta = {
-  provider?: string;
-  category?: string;
-  subcategory?: string;
-  duration?: string;
-  level?: string;
-  certificate?: boolean;
-  instructor?: { name: string; role: string; bio: string; image_url: string };
-  lessons?: Lesson[];
-  resources?: string[];
-  advanced_program?: AdvancedProgramMeta;
-  program?: string;
-  format?: string;
-  venue?: string;
-  capacity?: string;
-  timezone?: string;
-  registration_deadline?: string;
-  registration_url?: string;
-  meeting_url?: string;
-  replay_url?: string;
-  recording_allowed?: boolean;
-  speaker?: { name: string; role: string; bio: string; image_url: string };
-  reminders?: string[];
-  resource_type?: string;
-  delivery?: string;
-  url?: string;
-  author?: string;
-  audience?: string;
-  career_fields?: string;
-  subfields?: string;
-  surfaces?: string[];
-  notification_channels?: string[];
-  [key: string]: unknown;
-};
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-const areaByType: Record<EducationKind, "courses" | "events" | "resources"> = {
-  course: "courses",
-  event: "events",
-  resource: "resources",
-};
-const labels: Record<EducationKind, string> = {
-  course: "Course Builder",
-  event: "Event Builder",
-  resource: "Resource Builder",
-};
-const programs = [
-  "live-session",
-  "career-support",
-  "discovery-mentorship",
-  "industry-mentorship",
-  "personal-growth",
-  "smart-money-girl",
-  "leadership",
-  "clique-fireside",
-  "sister-circle",
-  "professional-learning",
-];
-
-function publicationIssues(
-  type: EducationKind,
-  draft: ContentDraft,
-  meta: BuilderMeta,
-) {
-  if (!["published", "scheduled"].includes(draft.status)) return [];
-  const issues: string[] = [];
-  const required = (value: unknown, label: string) => {
-    if (!String(value ?? "").trim()) issues.push(label);
-  };
-  required(draft.title, "Title");
-  required(draft.summary, "Short description");
-  required(draft.body, "Full details");
-  required(draft.image_url, "Cover image");
-  required(draft.route, "App route");
-  if (draft.status === "scheduled") {
-    required(draft.publish_at, "Publish date and time");
-    if (draft.publish_at && new Date(draft.publish_at) <= new Date())
-      issues.push("Publish date must be in the future");
-  }
-  if (!meta.surfaces?.length) issues.push("At least one app surface");
-  required(meta.audience, "Audience");
-  if (
-    meta.audience === "specific-career-fields" &&
-    !String(meta.career_fields ?? "").trim()
-  )
-    issues.push("Career fields for the selected audience");
-  if (type === "course") {
-    required(meta.category, "Course category");
-    required(meta.duration, "Total duration");
-    required(meta.instructor?.name, "Lecturer name");
-    required(meta.instructor?.role, "Lecturer role / organisation");
-    required(meta.instructor?.bio, "Lecturer biography");
-    const lessons = meta.lessons ?? [];
-    if (!lessons.length) issues.push("At least one lesson");
-    lessons.forEach((lesson, index) => {
-      const prefix = `Lesson ${index + 1}`;
-      required(lesson.id, `${prefix} ID`);
-      required(lesson.title, `${prefix} title`);
-      required(lesson.summary, `${prefix} summary`);
-      required(lesson.duration, `${prefix} duration`);
-      const hasNotes = (lesson.sections ?? []).some(
-        (section) => section.heading.trim() && section.body.trim(),
-      );
-      const hasMedia =
-        lesson.media_type !== "none" && Boolean(lesson.media_url.trim());
-      if (!hasNotes && !hasMedia)
-        issues.push(`${prefix} needs complete notes or media`);
-      if (lesson.media_type !== "none" && !lesson.media_url.trim())
-        issues.push(`${prefix} media URL`);
-    });
-  }
-  if (type === "event") {
-    required(draft.starts_at, "Start date and time");
-    required(draft.ends_at, "End date and time");
-    required(meta.timezone, "Time zone");
-    required(meta.capacity, "Capacity");
-    required(meta.registration_deadline, "Registration deadline");
-    required(meta.speaker?.name, "Speaker name");
-    required(meta.speaker?.role, "Speaker role / organisation");
-    required(meta.speaker?.bio, "Speaker biography");
-    const start = draft.starts_at ? new Date(draft.starts_at) : null;
-    const end = draft.ends_at ? new Date(draft.ends_at) : null;
-    const deadline = meta.registration_deadline
-      ? new Date(meta.registration_deadline)
-      : null;
-    if (start && end && end <= start)
-      issues.push("End time must be after the start time");
-    if (start && deadline && deadline >= start)
-      issues.push("Registration deadline must be before the event starts");
-    if (!Number.isInteger(Number(meta.capacity)) || Number(meta.capacity) <= 0)
-      issues.push("Capacity must be a whole number above zero");
-    if (meta.format === "physical") required(meta.venue, "Physical venue");
-    else if (
-      !String(meta.meeting_url ?? "").trim() &&
-      !String(meta.registration_url ?? "").trim()
-    )
-      issues.push("Private meeting link or external registration link");
-  }
-  if (type === "resource") {
-    required(meta.resource_type, "Resource format");
-    required(meta.url, "Resource upload or link");
-  }
-  return [...new Set(issues)];
-}
-
-function blank(type: EducationKind): ContentDraft {
-  return {
-    slug: "",
-    area: areaByType[type],
-    content_type: type,
-    title: "",
-    eyebrow: "",
-    summary: "",
-    body: "",
-    image_url: "",
-    route: "",
-    access_level: "open",
-    status: "draft",
-    featured: false,
-    visible: true,
-    sort_order: 0,
-    publish_at: null,
-    starts_at: null,
-    ends_at: null,
-    metadata:
-      type === "course"
-        ? {
-            provider: "GWMB",
-            category: "professional",
-            subcategory: "",
-            duration: "",
-            level: "Beginner",
-            certificate: false,
-            instructor: { name: "", role: "", bio: "", image_url: "" },
-            lessons: [],
-            resources: [],
-            advanced_program: {
-              enabled: false,
-              title: "",
-              partner: "Tech School Africa",
-              summary: "",
-              duration: "",
-              format: "Online",
-              certificate: "",
-              programme_url: "",
-              application_url: "",
-              deadline: "",
-              intake: "",
-              standard_price: "",
-              status: "coming-soon",
-              offer_type: "none",
-              offer_label: "",
-              members_only_offer: true,
-              completion_required: false,
-            },
-            audience: "everyone",
-            career_fields: "",
-            subfields: "",
-            surfaces: ["learn", "home"],
-            notification_channels: ["in-app"],
-          }
-        : type === "event"
-          ? {
-              program: "live-session",
-              format: "online",
-              venue: "",
-              capacity: "",
-              timezone: "Africa/Lagos",
-              registration_deadline: "",
-              registration_url: "",
-              meeting_url: "",
-              replay_url: "",
-              recording_allowed: false,
-              speaker: { name: "", role: "", bio: "", image_url: "" },
-              reminders: ["24 hours before", "1 hour before", "When live"],
-              audience: "everyone",
-              career_fields: "",
-              subfields: "",
-              surfaces: ["home", "learn"],
-              notification_channels: ["in-app", "push"],
-            }
-          : {
-              resource_type: "guide",
-              delivery: "upload",
-              url: "",
-              author: "GWMB",
-              audience: "everyone",
-              career_fields: "",
-              subfields: "",
-              surfaces: ["learn"],
-              notification_channels: ["in-app"],
-            },
-  };
-}
 
 export default function EducationBuilder() {
   const params = useLocalSearchParams<{
@@ -391,6 +110,8 @@ export default function EducationBuilder() {
   });
   const [busy, setBusy] = useState(Boolean(params.id));
   const [saving, setSaving] = useState(false);
+  const [lessonUploading, setLessonUploading] = useState(false);
+  const [section, setSection] = useState<CourseBuilderSection>("overview");
   const [uploading, setUploading] = useState(false);
   useEffect(() => {
     if (params.id)
@@ -456,9 +177,8 @@ export default function EducationBuilder() {
     else if (result.url) detail("url", result.url);
   }
   async function save() {
+    if (saving || uploading || lessonUploading) return;
     if (!draft.title.trim()) return Alert.alert("Add a title");
-    if (type === "course" && !meta.lessons?.length)
-      return Alert.alert("Add at least one lesson");
     if (
       type === "course" &&
       meta.advanced_program?.enabled &&
@@ -488,6 +208,7 @@ export default function EducationBuilder() {
       content_type: type,
       metadata: meta,
     });
+    if (!result.error && result.data) setDraft(result.data as ContentDraft);
     if (
       !result.error &&
       type === "course" &&
@@ -515,7 +236,7 @@ export default function EducationBuilder() {
       setMeta(result.data.metadata ? editableMeta(result.data) : meta);
       Alert.alert(
         "Course saved",
-        "The course and its advanced partner pathway are ready to preview. Published courses appear in Learn automatically.",
+        draft.status === "draft" ? "Your draft is saved in the content library." : "Your course changes have been saved.",
       );
     } else {
       Alert.alert("Saved", `This ${type} is now in the central library.`);
@@ -542,79 +263,97 @@ export default function EducationBuilder() {
   return (
     <Screen form>
       <PageHeader eyebrow={labels[type].toUpperCase()} title={title} />
-      <View style={styles.banner}>
-        <View style={styles.bannerIcon}>
-          <Ionicons
-            name={
-              type === "course"
-                ? "school-outline"
-                : type === "event"
-                  ? "calendar-outline"
-                  : "document-text-outline"
-            }
-            size={21}
-            color="white"
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bannerTitle}>{labels[type]}</Text>
-          <Text style={styles.bannerCopy}>
-            {type === "course"
-              ? "Build lessons, lecturer details and learning media."
-              : type === "event"
+      {type === "course" ? (
+        <CourseBuilderNav
+          section={section}
+          onSelect={setSection}
+          title={draft.title || "Untitled course"}
+          status={draft.status}
+          lessonCount={meta.lessons?.length ?? 0}
+        />
+      ) : (
+        <View style={styles.banner}>
+          <View style={styles.bannerIcon}>
+            <Ionicons
+              name={
+                type === "event" ? "calendar-outline" : "document-text-outline"
+              }
+              size={21}
+              color="white"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>{labels[type]}</Text>
+            <Text style={styles.bannerCopy}>
+              {type === "event"
                 ? "One event record can surface across Learn, Mentorship, Community and Home."
                 : "Upload a file or connect Drive, YouTube and external links."}
-          </Text>
+            </Text>
+          </View>
         </View>
-      </View>
-      <Field
-        label="TITLE"
-        value={draft.title}
-        onChange={(value) => {
-          set("title", value);
-          if (!draft.id && !draft.slug) set("slug", slugify(value));
-        }}
-        placeholder={
-          type === "course"
-            ? "How Technology Careers Work"
-            : type === "event"
-              ? "Should You Become a Product Manager?"
-              : "The CV Application Guide"
+      )}
+      <View
+        style={
+          type === "course" && section !== "overview"
+            ? styles.hidden
+            : undefined
         }
-      />
-      <Field
-        label="SHORT LABEL"
-        value={draft.eyebrow ?? ""}
-        onChange={(value) => set("eyebrow", value)}
-        placeholder="Shown above the title"
-      />
-      <Field
-        label="SHORT DESCRIPTION"
-        value={draft.summary ?? ""}
-        onChange={(value) => set("summary", value)}
-        placeholder="The concise promise shown on cards"
-        multiline
-      />
-      <Field
-        label="FULL DETAILS"
-        value={draft.body ?? ""}
-        onChange={(value) => set("body", value)}
-        placeholder="What should people know?"
-        multiline
-      />
-      <Field
-        label="COVER IMAGE URL"
-        value={draft.image_url ?? ""}
-        onChange={(value) => set("image_url", value)}
-        placeholder="Paste an existing image URL or upload below"
-      />
-      <MediaImage
-        value={draft.image_url ?? ""}
-        uploading={uploading}
-        onUpload={cover}
-      />
+      >
+        <Field
+          label="TITLE"
+          value={draft.title}
+          onChange={(value) => {
+            set("title", value);
+            if (
+              !draft.id &&
+              (!draft.slug || draft.slug === slugify(draft.title))
+            )
+              set("slug", slugify(value));
+          }}
+          placeholder={
+            type === "course"
+              ? "How Technology Careers Work"
+              : type === "event"
+                ? "Should You Become a Product Manager?"
+                : "The CV Application Guide"
+          }
+        />
+        <Field
+          label="SHORT LABEL"
+          value={draft.eyebrow ?? ""}
+          onChange={(value) => set("eyebrow", value)}
+          placeholder="Shown above the title"
+        />
+        <Field
+          label="SHORT DESCRIPTION"
+          value={draft.summary ?? ""}
+          onChange={(value) => set("summary", value)}
+          placeholder="The concise promise shown on cards"
+          multiline
+        />
+        <Field
+          label="FULL DETAILS"
+          value={draft.body ?? ""}
+          onChange={(value) => set("body", value)}
+          placeholder="What should people know?"
+          multiline
+        />
+        <Field
+          label="COVER IMAGE URL"
+          value={draft.image_url ?? ""}
+          onChange={(value) => set("image_url", value)}
+          placeholder="Paste an existing image URL or upload below"
+        />
+        <MediaImage
+          value={draft.image_url ?? ""}
+          uploading={uploading}
+          onUpload={cover}
+        />
+      </View>
       {type === "course" ? (
         <CourseFields
+          section={section}
+          onUploadingChange={setLessonUploading}
           meta={meta}
           setMeta={setMeta}
           secureOffer={secureOffer}
@@ -637,14 +376,66 @@ export default function EducationBuilder() {
           onUpload={uploadResource}
         />
       )}
-      <Targeting meta={meta} setMeta={setMeta} />
-      <Publishing draft={draft} setDraft={setDraft} />
-      <Pressable disabled={saving} onPress={save} style={styles.save}>
+      <View
+        style={
+          type === "course" && section !== "publishing"
+            ? styles.hidden
+            : undefined
+        }
+      >
+        {type === "course" ? (
+          <View style={styles.readiness}>
+            <Section
+              title="Publication checklist"
+              copy="Save a draft at any stage. Complete these details before publishing."
+            />
+            {!publicationIssues(
+              type,
+              {
+                ...draft,
+                status: "published",
+                route: draft.route || "/course/preview",
+              },
+              meta,
+            ).length ? (
+              <Text style={styles.checklistItem}>
+                All required course details are complete.
+              </Text>
+            ) : null}
+            {publicationIssues(
+              type,
+              {
+                ...draft,
+                status: "published",
+                route: draft.route || "/course/preview",
+              },
+              meta,
+            ).map((issue) => (
+              <Text key={issue} style={styles.checklistItem}>
+                • {issue}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        <Targeting meta={meta} setMeta={setMeta} />
+        <Publishing draft={draft} setDraft={setDraft} />
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        disabled={saving || uploading || lessonUploading}
+        onPress={save}
+        style={[
+          styles.save,
+          (saving || uploading || lessonUploading) && { opacity: 0.5 },
+        ]}
+      >
         {saving ? (
           <ActivityIndicator color="white" />
         ) : (
           <>
-            <Text style={styles.saveText}>Save {type}</Text>
+            <Text style={styles.saveText}>
+              {draft.status === "draft" ? "Save draft" : "Save " + type}
+            </Text>
             <Ionicons name="arrow-forward" size={18} color="white" />
           </>
         )}
@@ -654,14 +445,18 @@ export default function EducationBuilder() {
 }
 
 function CourseFields({
+  section,
+  onUploadingChange,
   meta,
   setMeta,
   secureOffer,
   setSecureOffer,
   protectedUpload,
 }: {
+  section: CourseBuilderSection;
+  onUploadingChange: (value: boolean) => void;
   meta: BuilderMeta;
-  setMeta: (value: BuilderMeta) => void;
+  setMeta: Dispatch<SetStateAction<BuilderMeta>>;
   secureOffer: SecureAdvancedOffer;
   setSecureOffer: (value: SecureAdvancedOffer) => void;
   protectedUpload: boolean;
@@ -677,29 +472,41 @@ function CourseFields({
   const advanced =
     meta.advanced_program ??
     (blank("course").metadata as BuilderMeta).advanced_program!;
+  const [expandedLesson, setExpandedLesson] = useState<number | null>(0);
   const [uploadingLesson, setUploadingLesson] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadControl, setUploadControl] =
     useState<ContentUploadController | null>(null);
   const [uploadPaused, setUploadPaused] = useState(false);
   function updateLesson(index: number, change: Partial<Lesson>) {
-    setMeta({
-      ...meta,
-      lessons: lessons.map((lesson, i) =>
+    setMeta((current) => ({
+      ...current,
+      lessons: (current.lessons ?? []).map((lesson, i) =>
         i === index ? { ...lesson, ...change } : lesson,
       ),
-    });
+    }));
   }
   function updateAdvanced(change: Partial<AdvancedProgramMeta>) {
     setMeta({ ...meta, advanced_program: { ...advanced, ...change } });
   }
+  function moveLesson(index: number, direction: number) {
+    const next = [...lessons];
+    const target = index + direction;
+    if (uploadingLesson !== null || target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setMeta({ ...meta, lessons: next });
+    setExpandedLesson(target);
+  }
   function add() {
+    let number = lessons.length + 1;
+    while (lessons.some((lesson) => lesson.id === `lesson-${number}`)) number++;
+    setExpandedLesson(lessons.length);
     setMeta({
       ...meta,
       lessons: [
         ...lessons,
         {
-          id: `lesson-${lessons.length + 1}`,
+          id: `lesson-${number}`,
           title: "",
           summary: "",
           duration: "",
@@ -714,6 +521,7 @@ function CourseFields({
     });
   }
   async function uploadLesson(index: number) {
+    onUploadingChange(true);
     setUploadingLesson(index);
     setUploadProgress(0);
     setUploadPaused(false);
@@ -724,6 +532,7 @@ function CourseFields({
       { onProgress: setUploadProgress, onController: setUploadControl },
     );
     setUploadingLesson(null);
+    onUploadingChange(false);
     setUploadControl(null);
     if (result.error && result.error.message !== "Upload cancelled.")
       Alert.alert("Could not upload lesson media", result.error.message);
@@ -732,504 +541,599 @@ function CourseFields({
   }
   return (
     <View>
-      <Section
-        title="Course setup"
-        copy="Use a scalable category and show who provides the learning."
-      />
-      <Choice
-        label="PROVIDER"
-        values={["GWMB", "Tech School Africa", "Learning Partner"]}
-        selected={meta.provider ?? "GWMB"}
-        onSelect={(provider) => setMeta({ ...meta, provider })}
-      />
-      <Choice
-        label="LEVEL"
-        values={["Beginner", "Intermediate", "Advanced", "All levels"]}
-        selected={meta.level ?? "Beginner"}
-        onSelect={(level) => setMeta({ ...meta, level })}
-      />
-      <Field
-        label="CATEGORY"
-        value={meta.category ?? ""}
-        onChange={(category) => setMeta({ ...meta, category })}
-        placeholder="Tech & Digital, Business, Creative or Professional"
-      />
-      <Field
-        label="FIELD / SUBCATEGORY"
-        value={meta.subcategory ?? ""}
-        onChange={(subcategory) => setMeta({ ...meta, subcategory })}
-        placeholder="Data, Product, HR, Sales..."
-      />
-      <Field
-        label="TOTAL DURATION"
-        value={meta.duration ?? ""}
-        onChange={(duration) => setMeta({ ...meta, duration })}
-        placeholder="45 min"
-      />
-      <Toggle
-        title="Certificate included"
-        copy="Show a certificate benefit on the course."
-        value={Boolean(meta.certificate)}
-        onChange={(certificate) => setMeta({ ...meta, certificate })}
-      />
-      <Section
-        title="Lecturer"
-        copy="Add the person learners will see on the course detail page."
-      />
-      <Field
-        label="LECTURER NAME"
-        value={instructor.name}
-        onChange={(name) =>
-          setMeta({ ...meta, instructor: { ...instructor, name } })
-        }
-        placeholder="Full name"
-      />
-      <Field
-        label="ROLE / ORGANISATION"
-        value={instructor.role}
-        onChange={(role) =>
-          setMeta({ ...meta, instructor: { ...instructor, role } })
-        }
-        placeholder="Role · Company"
-      />
-      <Field
-        label="ABOUT THE LECTURER"
-        value={instructor.bio}
-        onChange={(bio) =>
-          setMeta({ ...meta, instructor: { ...instructor, bio } })
-        }
-        multiline
-        placeholder="Short, credible biography"
-      />
-      <Field
-        label="LECTURER IMAGE URL"
-        value={instructor.image_url}
-        onChange={(image_url) =>
-          setMeta({ ...meta, instructor: { ...instructor, image_url } })
-        }
-        placeholder="Image URL"
-      />
-      <Section
-        title={`Lessons · ${lessons.length}`}
-        copy="Each lesson becomes the actual learner page, including its media, notes and reflection."
-      />
-      {lessons.map((lesson, index) => {
-        const sections = lesson.sections ?? [];
-        return (
-          <View key={`${lesson.id}-${index}`} style={styles.lesson}>
-            <View style={styles.lessonHead}>
-              <View style={styles.lessonNumber}>
-                <Text style={styles.lessonNumberText}>{index + 1}</Text>
+      <View style={section !== "overview" ? styles.hidden : undefined}>
+        <Section
+          title="Course setup"
+          copy="Use a scalable category and show who provides the learning."
+        />
+        <Choice
+          label="PROVIDER"
+          values={["GWMB", "Tech School Africa", "Learning Partner"]}
+          selected={meta.provider ?? "GWMB"}
+          onSelect={(provider) => setMeta({ ...meta, provider })}
+        />
+        <Choice
+          label="LEVEL"
+          values={["Beginner", "Intermediate", "Advanced", "All levels"]}
+          selected={meta.level ?? "Beginner"}
+          onSelect={(level) => setMeta({ ...meta, level })}
+        />
+        <Field
+          label="CATEGORY"
+          value={meta.category ?? ""}
+          onChange={(category) => setMeta({ ...meta, category })}
+          placeholder="Tech & Digital, Business, Creative or Professional"
+        />
+        <Field
+          label="FIELD / SUBCATEGORY"
+          value={meta.subcategory ?? ""}
+          onChange={(subcategory) => setMeta({ ...meta, subcategory })}
+          placeholder="Data, Product, HR, Sales..."
+        />
+        <Field
+          label="TOTAL DURATION"
+          value={meta.duration ?? ""}
+          onChange={(duration) => setMeta({ ...meta, duration })}
+          placeholder="45 min"
+        />
+        <Toggle
+          title="Certificate included"
+          copy="Show a certificate benefit on the course."
+          value={Boolean(meta.certificate)}
+          onChange={(certificate) => setMeta({ ...meta, certificate })}
+        />
+      </View>
+      <View style={section !== "lecturer" ? styles.hidden : undefined}>
+        <Section
+          title="Lecturer"
+          copy="Add the person learners will see on the course detail page."
+        />
+        <Field
+          label="LECTURER NAME"
+          value={instructor.name}
+          onChange={(name) =>
+            setMeta({ ...meta, instructor: { ...instructor, name } })
+          }
+          placeholder="Full name"
+        />
+        <Field
+          label="ROLE / ORGANISATION"
+          value={instructor.role}
+          onChange={(role) =>
+            setMeta({ ...meta, instructor: { ...instructor, role } })
+          }
+          placeholder="Role · Company"
+        />
+        <Field
+          label="ABOUT THE LECTURER"
+          value={instructor.bio}
+          onChange={(bio) =>
+            setMeta({ ...meta, instructor: { ...instructor, bio } })
+          }
+          multiline
+          placeholder="Short, credible biography"
+        />
+        <Field
+          label="LECTURER IMAGE URL"
+          value={instructor.image_url}
+          onChange={(image_url) =>
+            setMeta({ ...meta, instructor: { ...instructor, image_url } })
+          }
+          placeholder="Image URL"
+        />
+      </View>
+      <View style={section !== "curriculum" ? styles.hidden : undefined}>
+        <Section
+          title={`Lessons · ${lessons.length}`}
+          copy="Each lesson becomes the actual learner page, including its media, notes and reflection."
+        />
+        {lessons.map((lesson, index) => {
+          const sections = lesson.sections ?? [];
+          return (
+            <View key={index} style={styles.lesson}>
+              <View style={styles.lessonHead}>
+                <View style={styles.lessonNumber}>
+                  <Text style={styles.lessonNumberText}>{index + 1}</Text>
+                </View>
+                <Pressable
+                  style={styles.lessonHeadingButton}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit lesson ${index + 1}: ${lesson.title || "Untitled lesson"}`}
+                  accessibilityState={{ expanded: expandedLesson === index }}
+                  onPress={() =>
+                    setExpandedLesson(expandedLesson === index ? null : index)
+                  }
+                >
+                  <Text style={styles.lessonTitle}>
+                    {lesson.title || `Lesson ${index + 1}`}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    <Text style={styles.lessonSummary}>{lesson.duration || "No duration"}</Text>
+                    <Ionicons name={expandedLesson === index ? "chevron-up" : "chevron-down"} size={13} color={colors.muted} />
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.lessonAction}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move lesson ${index + 1} up`}
+                  disabled={index === 0 || uploadingLesson !== null}
+                  onPress={() => moveLesson(index, -1)}
+                >
+                  <Ionicons
+                    name="arrow-up"
+                    size={18}
+                    color={index === 0 ? colors.line : colors.ink}
+                  />
+                </Pressable>
+                <Pressable
+                  style={styles.lessonAction}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move lesson ${index + 1} down`}
+                  disabled={
+                    index === lessons.length - 1 || uploadingLesson !== null
+                  }
+                  onPress={() => moveLesson(index, 1)}
+                >
+                  <Ionicons
+                    name="arrow-down"
+                    size={18}
+                    color={
+                      index === lessons.length - 1 ? colors.line : colors.ink
+                    }
+                  />
+                </Pressable>
+                <Pressable
+                  style={styles.lessonAction}
+                  disabled={uploadingLesson !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove lesson ${index + 1}`}
+                  onPress={() =>
+                    Alert.alert(
+                      "Remove lesson?",
+                      "The lesson and its notes will be removed when you save.",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Remove",
+                          style: "destructive",
+                          onPress: () => {
+                            setMeta({
+                              ...meta,
+                              lessons: lessons.filter((_, i) => i !== index),
+                            });
+                            setExpandedLesson(null);
+                          },
+                        },
+                      ],
+                    )
+                  }
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={17}
+                    color={colors.pinkDeep}
+                  />
+                </Pressable>
               </View>
-              <Text style={styles.lessonTitle}>Lesson {index + 1}</Text>
-              <Pressable
-                accessibilityLabel={`Remove lesson ${index + 1}`}
-                onPress={() =>
-                  setMeta({
-                    ...meta,
-                    lessons: lessons.filter((_, i) => i !== index),
-                  })
-                }
+              <View
+                style={expandedLesson !== index ? styles.hidden : undefined}
               >
-                <Ionicons
-                  name="trash-outline"
-                  size={17}
-                  color={colors.pinkDeep}
+                <Field
+                  label="LESSON TITLE"
+                  value={lesson.title}
+                  onChange={(title) => updateLesson(index, { title })}
+                  placeholder="Lesson title"
                 />
-              </Pressable>
+                <Field
+                  label="LESSON ID"
+                  value={lesson.id}
+                  onChange={(id) => updateLesson(index, { id: slugify(id) })}
+                  placeholder={`lesson-${index + 1}`}
+                />
+                <Field
+                  label="SUMMARY"
+                  value={lesson.summary}
+                  onChange={(summary) => updateLesson(index, { summary })}
+                  placeholder="What this lesson covers"
+                  multiline
+                />
+                <Field
+                  label="DURATION"
+                  value={lesson.duration}
+                  onChange={(duration) => updateLesson(index, { duration })}
+                  placeholder="8 min"
+                />
+                <Field
+                  label="LEARNING OBJECTIVES"
+                  value={(lesson.objectives ?? []).join("\n")}
+                  onChange={(value) =>
+                    updateLesson(index, {
+                      objectives: value
+                        .split("\n")
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="One objective per line"
+                  multiline
+                />
+                {sections.map((section, sectionIndex) => (
+                  <View
+                    key={`section-${sectionIndex}`}
+                    style={styles.lessonSection}
+                  >
+                    <View style={styles.lessonSectionHead}>
+                      <Text style={styles.lessonSectionTitle}>
+                        CONTENT SECTION {sectionIndex + 1}
+                      </Text>
+                      <Pressable
+                        onPress={() =>
+                          updateLesson(index, {
+                            sections: sections.filter(
+                              (_, i) => i !== sectionIndex,
+                            ),
+                          })
+                        }
+                      >
+                        <Ionicons name="close" size={17} color={colors.muted} />
+                      </Pressable>
+                    </View>
+                    <Field
+                      label="HEADING"
+                      value={section.heading}
+                      onChange={(heading) =>
+                        updateLesson(index, {
+                          sections: sections.map((item, i) =>
+                            i === sectionIndex ? { ...item, heading } : item,
+                          ),
+                        })
+                      }
+                      placeholder="Section heading"
+                    />
+                    <Field
+                      label="LESSON NOTES"
+                      value={section.body}
+                      onChange={(body) =>
+                        updateLesson(index, {
+                          sections: sections.map((item, i) =>
+                            i === sectionIndex ? { ...item, body } : item,
+                          ),
+                        })
+                      }
+                      placeholder="Teach the idea clearly here"
+                      multiline
+                    />
+                  </View>
+                ))}
+                <Pressable
+                  onPress={() =>
+                    updateLesson(index, {
+                      sections: [...sections, { heading: "", body: "" }],
+                    })
+                  }
+                  style={styles.addSection}
+                >
+                  <Ionicons name="add" size={15} color={colors.ink} />
+                  <Text style={styles.addSectionText}>Add content section</Text>
+                </Pressable>
+                <Field
+                  label="REFLECTION PROMPT"
+                  value={lesson.reflection ?? ""}
+                  onChange={(reflection) => updateLesson(index, { reflection })}
+                  placeholder="What should the learner pause and consider?"
+                  multiline
+                />
+                <Choice
+                  label="LESSON MEDIA"
+                  values={["youtube", "upload", "external", "none"]}
+                  selected={lesson.media_type || "none"}
+                  onSelect={(media_type) => updateLesson(index, { media_type })}
+                />
+                <Field
+                  label="VIDEO OR MEDIA URL"
+                  value={lesson.media_url}
+                  onChange={(media_url) => updateLesson(index, { media_url })}
+                  placeholder="Paste a YouTube, Vimeo or external link"
+                />
+                {lesson.media_type === "upload" ? (
+                  uploadingLesson === index ? (
+                    <View style={styles.uploadStatus}>
+                      <View style={styles.uploadTrack}>
+                        <View
+                          style={[
+                            styles.uploadFill,
+                            { width: `${uploadProgress}%` },
+                          ]}
+                        />
+                      </View>
+                      <View style={styles.uploadStatusRow}>
+                        <Text style={styles.uploadStatusText}>
+                          {uploadPaused
+                            ? "Upload paused"
+                            : `Uploading · ${uploadProgress}%`}
+                        </Text>
+                        <Pressable
+                          onPress={() => {
+                            if (uploadPaused) {
+                              uploadControl?.resume();
+                              setUploadPaused(false);
+                            } else {
+                              void uploadControl?.pause();
+                              setUploadPaused(true);
+                            }
+                          }}
+                        >
+                          <Text style={styles.uploadAction}>
+                            {uploadPaused ? "Resume" : "Pause"}
+                          </Text>
+                        </Pressable>
+                        <Pressable onPress={() => void uploadControl?.cancel()}>
+                          <Text style={styles.uploadAction}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => void uploadLesson(index)}
+                      style={styles.uploadFile}
+                    >
+                      <>
+                        <Ionicons
+                          name="cloud-upload-outline"
+                          size={19}
+                          color={colors.pinkDeep}
+                        />
+                        <Text style={styles.uploadFileText}>
+                          {lesson.media_url
+                            ? "Replace uploaded video"
+                            : "Choose and upload video"}
+                        </Text>
+                      </>
+                    </Pressable>
+                  )
+                ) : null}
+                <Toggle
+                  title="Free preview"
+                  copy="Mark this as a sample lesson for future preview access controls."
+                  value={lesson.preview}
+                  onChange={(preview) => updateLesson(index, { preview })}
+                />
+              </View>
             </View>
+          );
+        })}
+        <Pressable
+          accessibilityRole="button"
+          disabled={uploadingLesson !== null}
+          onPress={add}
+          style={styles.addLesson}
+        >
+          <Ionicons name="add" size={18} color={colors.pinkDeep} />
+          <Text style={styles.addLessonText}>Add lesson</Text>
+        </Pressable>
+      </View>
+      <View style={section !== "pathway" ? styles.hidden : undefined}>
+        <Section
+          title="Advanced partner pathway"
+          copy="Connect this GWMB course to a professional programme hosted and delivered by an external learning partner."
+        />
+        <Toggle
+          title="Show an advanced pathway"
+          copy="Adds a Go Further card to the course and completion journey."
+          value={advanced.enabled}
+          onChange={(enabled) => updateAdvanced({ enabled })}
+        />
+        {advanced.enabled ? (
+          <View style={styles.advancedAdmin}>
             <Field
-              label="LESSON TITLE"
-              value={lesson.title}
-              onChange={(title) => updateLesson(index, { title })}
-              placeholder="Lesson title"
+              label="ADVANCED PROGRAMME TITLE"
+              value={advanced.title}
+              onChange={(title) => updateAdvanced({ title })}
+              placeholder="Professional Certificate in Data Analysis"
             />
             <Field
-              label="LESSON ID"
-              value={lesson.id}
-              onChange={(id) => updateLesson(index, { id: slugify(id) })}
-              placeholder={`lesson-${index + 1}`}
+              label="LEARNING PARTNER"
+              value={advanced.partner}
+              onChange={(partner) => updateAdvanced({ partner })}
+              placeholder="Tech School Africa"
             />
             <Field
-              label="SUMMARY"
-              value={lesson.summary}
-              onChange={(summary) => updateLesson(index, { summary })}
-              placeholder="What this lesson covers"
+              label="PROGRAMME SUMMARY"
+              value={advanced.summary}
+              onChange={(summary) => updateAdvanced({ summary })}
+              placeholder="What learners progress into"
               multiline
             />
             <Field
               label="DURATION"
-              value={lesson.duration}
-              onChange={(duration) => updateLesson(index, { duration })}
-              placeholder="8 min"
+              value={advanced.duration}
+              onChange={(duration) => updateAdvanced({ duration })}
+              placeholder="12 weeks"
             />
             <Field
-              label="LEARNING OBJECTIVES"
-              value={(lesson.objectives ?? []).join("\n")}
-              onChange={(value) =>
-                updateLesson(index, {
-                  objectives: value
-                    .split("\n")
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="One objective per line"
-              multiline
+              label="FORMAT"
+              value={advanced.format}
+              onChange={(format) => updateAdvanced({ format })}
+              placeholder="Online · Instructor-led"
             />
-            {sections.map((section, sectionIndex) => (
-              <View
-                key={`section-${sectionIndex}`}
-                style={styles.lessonSection}
-              >
-                <View style={styles.lessonSectionHead}>
-                  <Text style={styles.lessonSectionTitle}>
-                    CONTENT SECTION {sectionIndex + 1}
-                  </Text>
-                  <Pressable
-                    onPress={() =>
-                      updateLesson(index, {
-                        sections: sections.filter((_, i) => i !== sectionIndex),
-                      })
-                    }
-                  >
-                    <Ionicons name="close" size={17} color={colors.muted} />
-                  </Pressable>
-                </View>
-                <Field
-                  label="HEADING"
-                  value={section.heading}
-                  onChange={(heading) =>
-                    updateLesson(index, {
-                      sections: sections.map((item, i) =>
-                        i === sectionIndex ? { ...item, heading } : item,
-                      ),
-                    })
-                  }
-                  placeholder="Section heading"
-                />
-                <Field
-                  label="LESSON NOTES"
-                  value={section.body}
-                  onChange={(body) =>
-                    updateLesson(index, {
-                      sections: sections.map((item, i) =>
-                        i === sectionIndex ? { ...item, body } : item,
-                      ),
-                    })
-                  }
-                  placeholder="Teach the idea clearly here"
-                  multiline
-                />
-              </View>
-            ))}
-            <Pressable
-              onPress={() =>
-                updateLesson(index, {
-                  sections: [...sections, { heading: "", body: "" }],
-                })
-              }
-              style={styles.addSection}
-            >
-              <Ionicons name="add" size={15} color={colors.ink} />
-              <Text style={styles.addSectionText}>Add content section</Text>
-            </Pressable>
             <Field
-              label="REFLECTION PROMPT"
-              value={lesson.reflection ?? ""}
-              onChange={(reflection) => updateLesson(index, { reflection })}
-              placeholder="What should the learner pause and consider?"
-              multiline
+              label="CERTIFICATE"
+              value={advanced.certificate}
+              onChange={(certificate) => updateAdvanced({ certificate })}
+              placeholder="Professional certificate included"
+            />
+            <Field
+              label="PROGRAMME INFORMATION URL"
+              value={advanced.programme_url}
+              onChange={(programme_url) => updateAdvanced({ programme_url })}
+              placeholder="https://techschoolafrica.com/programme"
+            />
+            <Field
+              label="APPLICATION / ENROLMENT URL"
+              value={advanced.application_url}
+              onChange={(application_url) =>
+                updateAdvanced({ application_url })
+              }
+              placeholder="External partner application page"
+            />
+            <AdminDateTimeField
+              label="APPLICATION DEADLINE"
+              value={advanced.deadline}
+              onChange={(deadline) => updateAdvanced({ deadline })}
+              optional
+            />
+            <Field
+              label="NEXT INTAKE"
+              value={advanced.intake}
+              onChange={(intake) => updateAdvanced({ intake })}
+              placeholder="January 2027"
+            />
+            <Field
+              label="STANDARD PRICE"
+              value={advanced.standard_price}
+              onChange={(standard_price) => updateAdvanced({ standard_price })}
+              placeholder="₦150,000"
             />
             <Choice
-              label="LESSON MEDIA"
-              values={["youtube", "upload", "external", "none"]}
-              selected={lesson.media_type || "none"}
-              onSelect={(media_type) => updateLesson(index, { media_type })}
+              label="PROGRAMME STATUS"
+              values={["open", "closing-soon", "coming-soon", "closed"]}
+              selected={advanced.status}
+              onSelect={(status) => updateAdvanced({ status })}
             />
-            <Field
-              label="VIDEO OR MEDIA URL"
-              value={lesson.media_url}
-              onChange={(media_url) => updateLesson(index, { media_url })}
-              placeholder="Paste a YouTube, Vimeo or external link"
+            <Choice
+              label="CURRENT MEMBER OFFER"
+              values={[
+                "none",
+                "discount",
+                "partial-scholarship",
+                "full-scholarship",
+                "fee-waiver",
+              ]}
+              selected={advanced.offer_type}
+              onSelect={(offer_type) => updateAdvanced({ offer_type })}
             />
-            {lesson.media_type === "upload" ? (
-              uploadingLesson === index ? (
-                <View style={styles.uploadStatus}>
-                  <View style={styles.uploadTrack}>
-                    <View
-                      style={[styles.uploadFill, { width: `${uploadProgress}%` }]}
-                    />
-                  </View>
-                  <View style={styles.uploadStatusRow}>
-                    <Text style={styles.uploadStatusText}>
-                      {uploadPaused ? "Upload paused" : `Uploading · ${uploadProgress}%`}
-                    </Text>
-                    <Pressable
-                      onPress={() => {
-                        if (uploadPaused) {
-                          uploadControl?.resume();
-                          setUploadPaused(false);
-                        } else {
-                          void uploadControl?.pause();
-                          setUploadPaused(true);
-                        }
-                      }}
-                    >
-                      <Text style={styles.uploadAction}>
-                        {uploadPaused ? "Resume" : "Pause"}
-                      </Text>
-                    </Pressable>
-                    <Pressable onPress={() => void uploadControl?.cancel()}>
-                      <Text style={styles.uploadAction}>Cancel</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => void uploadLesson(index)}
-                  style={styles.uploadFile}
-                >
-                  <>
+            {advanced.offer_type !== "none" ? (
+              <>
+                <Field
+                  label="PUBLIC OFFER LABEL"
+                  value={advanced.offer_label}
+                  onChange={(offer_label) => updateAdvanced({ offer_label })}
+                  placeholder="GWMB members receive 30% supported access"
+                />
+                <Toggle
+                  title="Verified members only"
+                  copy="Non-members can still continue at the standard partner price."
+                  value={advanced.members_only_offer}
+                  onChange={(members_only_offer) =>
+                    updateAdvanced({ members_only_offer })
+                  }
+                />
+                <Toggle
+                  title="Course completion required"
+                  copy="Require this GWMB course to be completed before the benefit can be claimed."
+                  value={advanced.completion_required}
+                  onChange={(completion_required) =>
+                    updateAdvanced({ completion_required })
+                  }
+                />
+                <View style={styles.secureOffer}>
+                  <View style={styles.secureOfferHead}>
                     <Ionicons
-                      name="cloud-upload-outline"
+                      name="shield-checkmark-outline"
                       size={19}
                       color={colors.pinkDeep}
                     />
-                    <Text style={styles.uploadFileText}>
-                      {lesson.media_url
-                        ? "Replace uploaded video"
-                        : "Choose and upload video"}
-                    </Text>
-                  </>
-                </Pressable>
-              )
-            ) : null}
-            <Toggle
-              title="Free preview"
-              copy="Mark this as a sample lesson for future preview access controls."
-              value={lesson.preview}
-              onChange={(preview) => updateLesson(index, { preview })}
-            />
-          </View>
-        );
-      })}
-      <Pressable onPress={add} style={styles.addLesson}>
-        <Ionicons name="add" size={18} color={colors.pinkDeep} />
-        <Text style={styles.addLessonText}>Add lesson</Text>
-      </Pressable>
-      <Section
-        title="Advanced partner pathway"
-        copy="Connect this GWMB course to a professional programme hosted and delivered by an external learning partner."
-      />
-      <Toggle
-        title="Show an advanced pathway"
-        copy="Adds a Go Further card to the course and completion journey."
-        value={advanced.enabled}
-        onChange={(enabled) => updateAdvanced({ enabled })}
-      />
-      {advanced.enabled ? (
-        <View style={styles.advancedAdmin}>
-          <Field
-            label="ADVANCED PROGRAMME TITLE"
-            value={advanced.title}
-            onChange={(title) => updateAdvanced({ title })}
-            placeholder="Professional Certificate in Data Analysis"
-          />
-          <Field
-            label="LEARNING PARTNER"
-            value={advanced.partner}
-            onChange={(partner) => updateAdvanced({ partner })}
-            placeholder="Tech School Africa"
-          />
-          <Field
-            label="PROGRAMME SUMMARY"
-            value={advanced.summary}
-            onChange={(summary) => updateAdvanced({ summary })}
-            placeholder="What learners progress into"
-            multiline
-          />
-          <Field
-            label="DURATION"
-            value={advanced.duration}
-            onChange={(duration) => updateAdvanced({ duration })}
-            placeholder="12 weeks"
-          />
-          <Field
-            label="FORMAT"
-            value={advanced.format}
-            onChange={(format) => updateAdvanced({ format })}
-            placeholder="Online · Instructor-led"
-          />
-          <Field
-            label="CERTIFICATE"
-            value={advanced.certificate}
-            onChange={(certificate) => updateAdvanced({ certificate })}
-            placeholder="Professional certificate included"
-          />
-          <Field
-            label="PROGRAMME INFORMATION URL"
-            value={advanced.programme_url}
-            onChange={(programme_url) => updateAdvanced({ programme_url })}
-            placeholder="https://techschoolafrica.com/programme"
-          />
-          <Field
-            label="APPLICATION / ENROLMENT URL"
-            value={advanced.application_url}
-            onChange={(application_url) => updateAdvanced({ application_url })}
-            placeholder="External partner application page"
-          />
-          <AdminDateTimeField
-            label="APPLICATION DEADLINE"
-            value={advanced.deadline}
-            onChange={(deadline) => updateAdvanced({ deadline })}
-            optional
-          />
-          <Field
-            label="NEXT INTAKE"
-            value={advanced.intake}
-            onChange={(intake) => updateAdvanced({ intake })}
-            placeholder="January 2027"
-          />
-          <Field
-            label="STANDARD PRICE"
-            value={advanced.standard_price}
-            onChange={(standard_price) => updateAdvanced({ standard_price })}
-            placeholder="₦150,000"
-          />
-          <Choice
-            label="PROGRAMME STATUS"
-            values={["open", "closing-soon", "coming-soon", "closed"]}
-            selected={advanced.status}
-            onSelect={(status) => updateAdvanced({ status })}
-          />
-          <Choice
-            label="CURRENT MEMBER OFFER"
-            values={[
-              "none",
-              "discount",
-              "partial-scholarship",
-              "full-scholarship",
-              "fee-waiver",
-            ]}
-            selected={advanced.offer_type}
-            onSelect={(offer_type) => updateAdvanced({ offer_type })}
-          />
-          {advanced.offer_type !== "none" ? (
-            <>
-              <Field
-                label="PUBLIC OFFER LABEL"
-                value={advanced.offer_label}
-                onChange={(offer_label) => updateAdvanced({ offer_label })}
-                placeholder="GWMB members receive 30% supported access"
-              />
-              <Toggle
-                title="Verified members only"
-                copy="Non-members can still continue at the standard partner price."
-                value={advanced.members_only_offer}
-                onChange={(members_only_offer) =>
-                  updateAdvanced({ members_only_offer })
-                }
-              />
-              <Toggle
-                title="Course completion required"
-                copy="Require this GWMB course to be completed before the benefit can be claimed."
-                value={advanced.completion_required}
-                onChange={(completion_required) =>
-                  updateAdvanced({ completion_required })
-                }
-              />
-              <View style={styles.secureOffer}>
-                <View style={styles.secureOfferHead}>
-                  <Ionicons
-                    name="shield-checkmark-outline"
-                    size={19}
-                    color={colors.pinkDeep}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.secureOfferTitle}>
-                      Protected member benefit
-                    </Text>
-                    <Text style={styles.hint}>
-                      This code is stored separately and is never exposed in
-                      public course data.
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.secureOfferTitle}>
+                        Protected member benefit
+                      </Text>
+                      <Text style={styles.hint}>
+                        This code is stored separately and is never exposed in
+                        public course data.
+                      </Text>
+                    </View>
                   </View>
+                  <Field
+                    label="DISCOUNT / SCHOLARSHIP CODE"
+                    value={secureOffer.benefitCode}
+                    onChange={(benefitCode) =>
+                      setSecureOffer({ ...secureOffer, benefitCode })
+                    }
+                    placeholder="GWMB-PRO-30"
+                  />
+                  <Field
+                    label="MAXIMUM CLAIMS"
+                    value={secureOffer.maxClaims}
+                    onChange={(maxClaims) =>
+                      setSecureOffer({
+                        ...secureOffer,
+                        maxClaims: maxClaims.replace(/[^0-9]/g, ""),
+                      })
+                    }
+                    placeholder="Leave blank for unlimited"
+                  />
+                  <Toggle
+                    title="Benefit is claimable"
+                    copy="Turn off immediately without removing the pathway."
+                    value={secureOffer.active}
+                    onChange={(active) =>
+                      setSecureOffer({ ...secureOffer, active })
+                    }
+                  />
                 </View>
-                <Field
-                  label="DISCOUNT / SCHOLARSHIP CODE"
-                  value={secureOffer.benefitCode}
-                  onChange={(benefitCode) =>
-                    setSecureOffer({ ...secureOffer, benefitCode })
-                  }
-                  placeholder="GWMB-PRO-30"
-                />
-                <Field
-                  label="MAXIMUM CLAIMS"
-                  value={secureOffer.maxClaims}
-                  onChange={(maxClaims) =>
-                    setSecureOffer({
-                      ...secureOffer,
-                      maxClaims: maxClaims.replace(/[^0-9]/g, ""),
-                    })
-                  }
-                  placeholder="Leave blank for unlimited"
-                />
-                <Toggle
-                  title="Benefit is claimable"
-                  copy="Turn off immediately without removing the pathway."
-                  value={secureOffer.active}
-                  onChange={(active) =>
-                    setSecureOffer({ ...secureOffer, active })
-                  }
-                />
-              </View>
-            </>
-          ) : null}
-        </View>
-      ) : null}
-      <Section
-        title={`Course resources · ${resources.length}`}
-        copy="Use “Resource title | link” so learners can open or download each item."
-      />
-      {resources.map((resource, index) => (
-        <View key={`${resource}-${index}`} style={styles.inlineField}>
-          <View style={styles.inlineCopy}>
-            <Field
-              label={`RESOURCE ${index + 1}`}
-              value={resource}
-              onChange={(value) =>
+              </>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+      <View style={section !== "curriculum" ? styles.hidden : undefined}>
+        <Section
+          title={`Course resources · ${resources.length}`}
+          copy="Use “Resource title | link” so learners can open or download each item."
+        />
+        {resources.map((resource, index) => (
+          <View key={index} style={styles.inlineField}>
+            <View style={styles.inlineCopy}>
+              <Field
+                label={`RESOURCE ${index + 1}`}
+                value={resource}
+                onChange={(value) =>
+                  setMeta({
+                    ...meta,
+                    resources: resources.map((item, i) =>
+                      i === index ? value : item,
+                    ),
+                  })
+                }
+                placeholder="CV workbook | https://…"
+              />
+            </View>
+            <Pressable
+              accessibilityLabel={`Remove resource ${index + 1}`}
+              onPress={() =>
                 setMeta({
                   ...meta,
-                  resources: resources.map((item, i) =>
-                    i === index ? value : item,
-                  ),
+                  resources: resources.filter((_, i) => i !== index),
                 })
               }
-              placeholder="CV workbook | https://…"
-            />
+              style={styles.remove}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={colors.pinkDeep}
+              />
+            </Pressable>
           </View>
-          <Pressable
-            accessibilityLabel={`Remove resource ${index + 1}`}
-            onPress={() =>
-              setMeta({
-                ...meta,
-                resources: resources.filter((_, i) => i !== index),
-              })
-            }
-            style={styles.remove}
-          >
-            <Ionicons name="trash-outline" size={18} color={colors.pinkDeep} />
-          </Pressable>
-        </View>
-      ))}
-      <Pressable
-        onPress={() => setMeta({ ...meta, resources: [...resources, ""] })}
-        style={styles.addLesson}
-      >
-        <Ionicons name="add" size={18} color={colors.pinkDeep} />
-        <Text style={styles.addLessonText}>Add resource</Text>
-      </Pressable>
+        ))}
+        <Pressable
+          onPress={() => setMeta({ ...meta, resources: [...resources, ""] })}
+          style={styles.addLesson}
+        >
+          <Ionicons name="add" size={18} color={colors.pinkDeep} />
+          <Text style={styles.addLessonText}>Add resource</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1717,6 +1621,7 @@ function Field({
     <View>
       <Text style={styles.label}>{label}</Text>
       <TextInput
+        accessibilityLabel={label}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
@@ -1834,6 +1739,38 @@ function Toggle({
 }
 
 const styles = StyleSheet.create({
+  hidden: { display: "none" },
+  readiness: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+    paddingBottom: 20,
+  },
+  checklistItem: {
+    fontFamily: fonts.body,
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 6,
+  },
+  lessonHeadingButton: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  lessonSummary: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 4,
+  },
+  lessonAction: {
+    width: 40,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   banner: {
     borderRadius: 22,
     backgroundColor: colors.ink,
@@ -1853,14 +1790,14 @@ const styles = StyleSheet.create({
   bannerTitle: { fontFamily: fonts.headingBold, fontSize: 14, color: "white" },
   bannerCopy: {
     fontFamily: fonts.body,
-    fontSize:13.5,
-    lineHeight:18,
+    fontSize: 13.5,
+    lineHeight: 18,
     color: "#D4CDD2",
     marginTop: 3,
   },
   label: {
     fontFamily: fonts.bodyBold,
-    fontSize:12.5,
+    fontSize: 12.5,
     letterSpacing: 0.7,
     color: colors.ink,
     marginTop: 17,
@@ -1879,7 +1816,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   multiline: { minHeight: 112, paddingTop: 15, textAlignVertical: "top" },
-  image: { height: 180, borderRadius: 20, backgroundColor: colors.pinkSoft },
+  image: {
+    aspectRatio: 16 / 9,
+    width: "100%",
+    borderRadius: 20,
+    backgroundColor: colors.pinkSoft,
+  },
   imageEmpty: {
     height: 115,
     borderRadius: 20,
@@ -1892,8 +1834,8 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontFamily: fonts.body,
-    fontSize:13,
-    lineHeight:17,
+    fontSize: 13,
+    lineHeight: 17,
     color: colors.muted,
     marginTop: 3,
   },
@@ -1910,15 +1852,15 @@ const styles = StyleSheet.create({
   },
   uploadText: {
     fontFamily: fonts.bodyBold,
-    fontSize:12.5,
+    fontSize: 12.5,
     color: colors.pinkDeep,
   },
   section: { marginTop: 27, marginBottom: 2 },
   sectionTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
   sectionCopy: {
     fontFamily: fonts.body,
-    fontSize:12.5,
-    lineHeight:19.5,
+    fontSize: 12.5,
+    lineHeight: 19.5,
     color: colors.muted,
     marginTop: 4,
   },
@@ -1938,7 +1880,7 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipText: {
     fontFamily: fonts.bodyBold,
-    fontSize:13,
+    fontSize: 13,
     color: colors.muted,
     textTransform: "capitalize",
   },
@@ -1956,7 +1898,7 @@ const styles = StyleSheet.create({
   },
   toggleTitle: {
     fontFamily: fonts.headingBold,
-    fontSize:15,
+    fontSize: 15,
     color: colors.ink,
   },
   lesson: {
@@ -1978,13 +1920,13 @@ const styles = StyleSheet.create({
   },
   lessonNumberText: {
     fontFamily: fonts.headingBold,
-    fontSize:13,
+    fontSize: 13,
     color: "white",
   },
   lessonTitle: {
     flex: 1,
     fontFamily: fonts.headingBold,
-    fontSize:13,
+    fontSize: 13,
     color: colors.ink,
     paddingHorizontal: 9,
   },
@@ -2003,7 +1945,7 @@ const styles = StyleSheet.create({
   },
   lessonSectionTitle: {
     fontFamily: fonts.bodyBold,
-    fontSize:13,
+    fontSize: 13,
     letterSpacing: 0.7,
     color: colors.pinkDeep,
   },
@@ -2019,7 +1961,7 @@ const styles = StyleSheet.create({
   },
   addSectionText: {
     fontFamily: fonts.bodyBold,
-    fontSize:13.5,
+    fontSize: 13.5,
     color: colors.ink,
   },
   advancedAdmin: {
@@ -2041,7 +1983,7 @@ const styles = StyleSheet.create({
   secureOfferHead: { flexDirection: "row", gap: 10, alignItems: "center" },
   secureOfferTitle: {
     fontFamily: fonts.headingBold,
-    fontSize:13,
+    fontSize: 13,
     color: colors.ink,
   },
   inlineField: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
@@ -2070,7 +2012,7 @@ const styles = StyleSheet.create({
   },
   addLessonText: {
     fontFamily: fonts.bodyBold,
-    fontSize:13,
+    fontSize: 13,
     color: colors.pinkDeep,
   },
   reminders: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 13 },
@@ -2085,7 +2027,7 @@ const styles = StyleSheet.create({
   },
   reminderText: {
     fontFamily: fonts.bodyBold,
-    fontSize:12.5,
+    fontSize: 12.5,
     color: colors.pinkDeep,
   },
   meet: {
@@ -2100,7 +2042,7 @@ const styles = StyleSheet.create({
   },
   meetTitle: {
     fontFamily: fonts.headingBold,
-    fontSize:15,
+    fontSize: 15,
     color: colors.ink,
   },
   uploadFile: {
@@ -2117,7 +2059,7 @@ const styles = StyleSheet.create({
   },
   uploadFileText: {
     fontFamily: fonts.bodyBold,
-    fontSize:13,
+    fontSize: 13,
     color: colors.pinkDeep,
   },
   uploadStatus: {
@@ -2148,12 +2090,12 @@ const styles = StyleSheet.create({
   uploadStatusText: {
     flex: 1,
     fontFamily: fonts.bodyBold,
-    fontSize:13.5,
+    fontSize: 13.5,
     color: colors.ink,
   },
   uploadAction: {
     fontFamily: fonts.bodyBold,
-    fontSize:13.5,
+    fontSize: 13.5,
     color: colors.pinkDeep,
   },
   preview: {
@@ -2171,7 +2113,7 @@ const styles = StyleSheet.create({
   previewText: {
     flex: 1,
     fontFamily: fonts.headingBold,
-    fontSize:14.5,
+    fontSize: 14.5,
     color: colors.ink,
   },
   save: {
@@ -2184,5 +2126,5 @@ const styles = StyleSheet.create({
     gap: 9,
     marginTop: 12,
   },
-  saveText: { fontFamily: fonts.headingBold, fontSize:13, color: "white" },
+  saveText: { fontFamily: fonts.headingBold, fontSize: 13, color: "white" },
 });

@@ -46,3 +46,4 @@ supabase/.temp/
 # Web admin build
 dist-admin/
 .wrangler/
+google-services.json
